@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Settings Modal</title>
+</head>
+<body>
+    <!-- Settings Modal Fragment -->
+    <div th:fragment="settings-modal" class="modal-overlay" id="settingsModal" style="display: none;">
+        <div class="modal modal-large">
+            <div class="modal-header">
+                <h3 class="modal-title">Settings</h3>
+                <button class="modal-close" onclick="closeModal('settingsModal')">&times;</button>
+            </div>
+            
+            <div class="modal-body settings-modal">
+                <div class="settings-nav">
+                    <div class="settings-nav-item active" onclick="showSettingsTab('general', this)">
+                        <i class="icon-general">⚙️</i> General
+                    </div>
+                    <div class="settings-nav-item" onclick="showSettingsTab('notifications', this)">
+                        <i class="icon-notifications">🔔</i> Notifications
+                    </div>
+                    <div class="settings-nav-item" onclick="showSettingsTab('privacy', this)">
+                        <i class="icon-privacy">🔒</i> Privacy
+                    </div>
+                    <div class="settings-nav-item" onclick="showSettingsTab('appearance', this)">
+                        <i class="icon-appearance">🎨</i> Appearance
+                    </div>
+                    <div class="settings-nav-item" onclick="showSettingsTab('advanced', this)">
+                        <i class="icon-advanced">🔧</i> Advanced
+                    </div>
+                    <div class="settings-nav-item" onclick="showSettingsTab('about', this)">
+                        <i class="icon-about">ℹ️</i> About
+                    </div>
+                </div>
+                
+                <div class="settings-content">
+                    <!-- General Settings -->
+                    <div id="generalSettings" class="settings-section">
+                        <h4>General Settings</h4>
+                        
+                        <div class="setting-item">
+                            <div class="setting-label">
+                                <h5>Auto-scroll to new messages</h5>
+                                <p>Automatically scroll to the bottom when new messages arrive</p>
+                            </div>
+                            <div class="setting-control">
+                                <div class="toggle-switch active" onclick="toggleSetting(this, 'autoScroll')"></div>
+                            </div>
+                        </div>
+                        
+                        <div class="setting-item">
+                            <div class="setting-label">
+                                <h5>Send message with Enter</h5>
+                                <p>Press Enter to send messages (Shift+Enter for new line)</p>
+                            </div>
+                            <div class="setting-control">
+                                <div class="toggle-switch active" onclick="toggleSetting(this, 'enterToSend')"></div>
+                            </div>
+                        </div>
+                        
+                        <div class="setting-item">
+                            <div class="setting-label">
+                                <h5>Show typing indicators</h5>
+                                <p>Show when others are typing</p>
+                            </div>
+                            <div class="setting-control">
+                                <div class="toggle-switch active" onclick="toggleSetting(this, 'showTyping')"></div>
+                            </div>
+                        </div>
+                        
+                        <div class="setting-item">
+                            <div class="setting-label">
+                                <h5>Language</h5>
+                                <p>Choose your preferred language</p>
+                            </div>
+                            <div class="setting-control">
+                                <select class="setting-select" onchange="changeLanguage(this.value)">
+                                    <option value="en">English</option>
+                                    <option value="es">Español</option>
+                                    <option value="fr">Français</option>
+                                    <option value="de">Deutsch</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Notifications Settings -->
+                    <div id="notificationSettings" class="settings-section hidden">
+                        <h4>Notification Settings</h4>
+                        
+                        <div class="setting-item">
+                            <div class="setting-label">
+                                <h5>Desktop notifications</h5>
+                                <p>Show desktop notifications for new messages</p>
+                            </div>
+                            <div class="setting-control">
+                                <div class="toggle-switch active" onclick="toggleSetting(this, 'desktopNotifications')"></div>
+                            </div>
+                        </div>
+                        
+                        <div class="setting-item">
+                            <div class="setting-label">
+                                <h5>Sound notifications</h5>
+                                <p>Play sound when receiving new messages</p>
+                            </div>
+                            <div class="setting-control">
+                                <div class="toggle-switch active" onclick="toggleSetting(this, 'soundNotifications')"></div>
+                            </div>
+                        </div>
+                        
+                        <div class="setting-item">
+                            <div class="setting-label">
+                                <h5>Notification sound</h5>
+                                <p>Choose notification sound</p>
+                            </div>
+                            <div class="setting-control">
+                                <select class="setting-select">
+                                    <option value="default">Default</option>
+                                    <option value="chime">Chime</option>
+                                    <option value="bell">Bell</option>
+                                    <option value="pop">Pop</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div class="setting-item">
+                            <div class="setting-label">
+                                <h5>Notification timeout</h5>
+                                <p>How long notifications stay visible (seconds)</p>
+                            </div>
+                            <div class="setting-control">
+                                <input type="range" min="3" max="10" value="5" class="setting-range">
+                                <span class="range-value">5s</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Privacy Settings -->
+                    <div id="privacySettings" class="settings-section hidden">
+                        <h4>Privacy Settings</h4>
+                        
+                        <div class="setting-item">
+                            <div class="setting-label">
+                                <h5>Hide images by default</h5>
+                                <p>Hide image messages until clicked to view</p>
+                            </div>
+                            <div class="setting-control">
+                                <div class="toggle-switch" onclick="toggleSetting(this, 'hideImages')"></div>
+                            </div>
+                        </div>
+                        
+                        <div class="setting-item">
+                            <div class="setting-label">
+                                <h5>Read receipts</h5>
+                                <p>Send read receipts to other users</p>
+                            </div>
+                            <div class="setting-control">
+                                <div class="toggle-switch active" onclick="toggleSetting(this, 'readReceipts')"></div>
+                            </div>
+                        </div>
+                        
+                        <div class="setting-item">
+                            <div class="setting-label">
+                                <h5>Online status</h5>
+                                <p>Show your online status to others</p>
+                            </div>
+                            <div class="setting-control">
+                                <div class="toggle-switch active" onclick="toggleSetting(this, 'showOnlineStatus')"></div>
+                            </div>
+                        </div>
+                        
+                        <div class="setting-item">
+                            <div class="setting-label">
+                                <h5>Block list</h5>
+                                <p>Manage blocked users</p>
+                            </div>
+                            <div class="setting-control">
+                                <button onclick="showBlockedUsersModal()" class="btn btn-secondary">Manage Blocked Users</button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Appearance Settings -->
+                    <div id="appearanceSettings" class="settings-section hidden">
+                        <h4>Appearance Settings</h4>
+                        
+                        <div class="setting-item">
+                            <div class="setting-label">
+                                <h5>Theme</h5>
+                                <p>Choose your preferred theme</p>
+                            </div>
+                            <div class="setting-control">
+                                <select class="setting-select" onchange="changeTheme(this.value)">
+                                    <option value="light">Light</option>
+                                    <option value="dark">Dark</option>
+                                    <option value="auto">Auto (System)</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div class="setting-item">
+                            <div class="setting-label">
+                                <h5>Font size</h5>
+                                <p>Adjust the size of text in messages</p>
+                            </div>
+                            <div class="setting-control">
+                                <select class="setting-select" onchange="changeFontSize(this.value)">
+                                    <option value="small">Small</option>
+                                    <option value="medium" selected>Medium</option>
+                                    <option value="large">Large</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div class="setting-item">
+                            <div class="setting-label">
+                                <h5>Chat density</h5>
+                                <p>Adjust spacing between messages</p>
+                            </div>
+                            <div class="setting-control">
+                                <select class="setting-select">
+                                    <option value="compact">Compact</option>
+                                    <option value="normal" selected>Normal</option>
+                                    <option value="comfortable">Comfortable</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Advanced Settings -->
+                    <div id="advancedSettings" class="settings-section hidden">
+                        <h4>Advanced Settings</h4>
+                        
+                        <div class="setting-item">
+                            <div class="setting-label">
+                                <h5>Developer mode</h5>
+                                <p>Enable advanced debugging features</p>
+                            </div>
+                            <div class="setting-control">
+                                <div class="toggle-switch" onclick="toggleSetting(this, 'developerMode')"></div>
+                            </div>
+                        </div>
+                        
+                        <div class="setting-item">
+                            <div class="setting-label">
+                                <h5>Export data</h5>
+                                <p>Export your chat history and settings</p>
+                            </div>
+                            <div class="setting-control">
+                                <button onclick="showExportModal()" class="btn btn-primary">Export Data</button>
+                            </div>
+                        </div>
+                        
+                        <div class="setting-item">
+                            <div class="setting-label">
+                                <h5>Clear cache</h5>
+                                <p>Clear stored cache and temporary data</p>
+                            </div>
+                            <div class="setting-control">
+                                <button onclick="clearCache()" class="btn btn-warning">Clear Cache</button>
+                            </div>
+                        </div>
+                        
+                        <div class="setting-item">
+                            <div class="setting-label">
+                                <h5>Reset settings</h5>
+                                <p>Reset all settings to defaults</p>
+                            </div>
+                            <div class="setting-control">
+                                <button onclick="resetSettings()" class="btn btn-danger">Reset All Settings</button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- About Settings -->
+                    <div id="aboutSettings" class="settings-section hidden">
+                        <h4>About</h4>
+                        
+                        <div class="about-info">
+                            <div class="app-logo">
+                                <img src="/images/logo.png" alt="Reddit Chat Manager" class="logo-img">
+                            </div>
+                            
+                            <h5>Reddit Chat Manager</h5>
+                            <p class="version">Version 1.0.0</p>
+                            <p class="description">A local chat application for managing Reddit-style conversations with modern features and real-time messaging.</p>
+                            
+                            <div class="about-links">
+                                <button onclick="showKeyboardShortcuts()" class="btn btn-secondary">Keyboard Shortcuts</button>
+                                <button onclick="showLicenseInfo()" class="btn btn-secondary">License</button>
+                                <button onclick="checkForUpdates()" class="btn btn-secondary">Check for Updates</button>
+                            </div>
+                            
+                            <div class="system-info">
+                                <h6>System Information</h6>
+                                <p>Browser: <span id="browserInfo">Chrome 91.0.4472.124</span></p>
+                                <p>Platform: <span id="platformInfo">Windows 10</span></p>
+                                <p>Connection: <span id="connectionStatus">Connected</span></p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="modal-footer">
+                <button onclick="saveSettings()" class="btn btn-primary">Save Changes</button>
+                <button onclick="closeModal('settingsModal')" class="btn btn-secondary">Close</button>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

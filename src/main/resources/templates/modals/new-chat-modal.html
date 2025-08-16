@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>New Chat Modal</title>
+</head>
+<body>
+    <!-- New Chat Modal Fragment -->
+    <div th:fragment="new-chat-modal" class="modal-overlay" id="newChatModal" style="display: none;">
+        <div class="modal modal-medium">
+            <div class="modal-header">
+                <h3 class="modal-title">Start New Chat</h3>
+                <button class="modal-close" onclick="closeModal('newChatModal')">&times;</button>
+            </div>
+            
+            <div class="modal-body">
+                <div class="user-search-container">
+                    <label for="newChatUserSearch">Search for users:</label>
+                    <input type="text" 
+                           id="newChatUserSearch" 
+                           class="user-search-input" 
+                           placeholder="Enter username or search..." 
+                           autocomplete="off">
+                    
+                    <div id="newChatUserSuggestions" class="user-suggestions hidden">
+                        <!-- Dynamic user suggestions will be populated here -->
+                    </div>
+                </div>
+                
+                <div id="newChatSelectedUser" class="selected-user hidden">
+                    <div class="selected-user-info">
+                        <img class="avatar-img" src="/images/default-avatar.png" alt="User Avatar">
+                        <div class="user-details">
+                            <h5 class="user-name">Selected User</h5>
+                            <p class="user-username">@username</p>
+                        </div>
+                    </div>
+                    <button onclick="clearSelectedUser()" class="btn btn-secondary">Change User</button>
+                </div>
+                
+                <!-- Recent Users -->
+                <div class="recent-users" th:if="${recentUsers}">
+                    <h4>Recent Conversations</h4>
+                    <div class="recent-users-list">
+                        <div th:each="user : ${recentUsers}" 
+                             class="recent-user-item" 
+                             onclick="selectUserForChat(this)"
+                             th:data-username="${user.username}"
+                             th:data-display-name="${user.displayName}">
+                            <img th:src="${user.avatarUrl ?: '/images/default-avatar.png'}" 
+                                 th:alt="${user.username}" 
+                                 class="avatar-img">
+                            <div class="user-info">
+                                <span class="user-name" th:text="${user.displayName ?: user.username}">Display Name</span>
+                                <span class="user-status" th:text="${user.isOnline ? 'Online' : 'Offline'}" 
+                                      th:class="${user.isOnline ? 'online' : 'offline'}">Status</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="modal-footer">
+                <button onclick="closeModal('newChatModal')" class="btn btn-secondary">Cancel</button>
+                <button onclick="startNewChat()" class="btn btn-primary" id="startChatBtn" disabled>Start Chat</button>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Search Bar</title>
+</head>
+<body>
+    <!-- Search Bar Fragment -->
+    <div th:fragment="search-bar" class="search-bar-container">
+        <div class="search-main">
+            <div class="search-input-container">
+                <input type="text" id="mainSearchInput" placeholder="Search chats, users, or messages..." 
+                       class="main-search-input" onkeyup="handleSearchInput(event)">
+                <button class="search-btn" onclick="performSearch()">
+                    <i class="icon-search"></i>
+                </button>
+                <button class="filter-toggle-btn" onclick="toggleFilters()">
+                    <i class="icon-filter"></i>
+                </button>
+            </div>
+            
+            <!-- Search Suggestions -->
+            <div id="searchSuggestions" class="search-suggestions hidden">
+                <!-- Dynamic suggestions will be populated here -->
+            </div>
+        </div>
+        
+        <!-- Advanced Filters Panel -->
+        <div id="filtersPanel" class="filters-panel hidden">
+            <div class="filter-row">
+                <label for="searchType">Search in:</label>
+                <select id="searchType" class="filter-select">
+                    <option value="all">Everything</option>
+                    <option value="messages">Messages</option>
+                    <option value="users">Users</option>
+                    <option value="chats">Chats</option>
+                </select>
+            </div>
+            
+            <div class="filter-row">
+                <label for="dateFrom">From date:</label>
+                <input type="date" id="dateFrom" class="filter-input">
+            </div>
+            
+            <div class="filter-row">
+                <label for="dateTo">To date:</label>
+                <input type="date" id="dateTo" class="filter-input">
+            </div>
+            
+            <div class="filter-row">
+                <label for="userFilter">User:</label>
+                <input type="text" id="userFilter" placeholder="Username..." class="filter-input">
+            </div>
+            
+            <div class="filter-row">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="onlyUnread">
+                    <span class="checkmark"></span>
+                    Only unread messages
+                </label>
+            </div>
+            
+            <div class="filter-row">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="onlyPinned">
+                    <span class="checkmark"></span>
+                    Only pinned chats
+                </label>
+            </div>
+            
+            <div class="filter-actions">
+                <button onclick="applyFilters()" class="btn btn-primary">Apply Filters</button>
+                <button onclick="clearFilters()" class="btn btn-secondary">Clear</button>
+            </div>
+        </div>
+        
+        <!-- Search Results Preview -->
+        <div id="searchResults" class="search-results hidden">
+            <div class="results-header">
+                <h4>Search Results</h4>
+                <button onclick="closeSearchResults()" class="close-btn">×</button>
+            </div>
+            <div id="searchResultsContent" class="results-content">
+                <!-- Dynamic search results -->
+            </div>
+        </div>
+    </div>
+    
+    <!-- Search Result Item Fragment -->
+    <div th:fragment="search-result-item" class="search-result-item" th:data-result-type="${result.type}">
+        <!-- Message Result -->
+        <div th:if="${result.type == 'message'}" class="message-result">
+            <div class="result-icon">
+                <i class="icon-message"></i>
+            </div>
+            <div class="result-content">
+                <div class="result-title" th:text="${result.title}">Message from User</div>
+                <div class="result-preview" th:text="${result.preview}">Message preview...</div>
+                <div class="result-meta">
+                    <span th:text="${result.date}">2 days ago</span> • 
+                    <span th:text="${result.chat}">Chat with John</span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- User Result -->
+        <div th:if="${result.type == 'user'}" class="user-result">
+            <div class="result-avatar">
+                <img th:src="${result.avatar}" th:alt="${result.username}" class="avatar-img">
+            </div>
+            <div class="result-content">
+                <div class="result-title" th:text="${result.displayName}">John Doe</div>
+                <div class="result-subtitle" th:text="'@' + ${result.username}">@johndoe</div>
+                <div class="result-meta">
+                    <span th:if="${result.isOnline}" class="online-status">Online</span>
+                    <span th:unless="${result.isOnline}" class="offline-status">Offline</span>
+                </div>
+            </div>
+            <div class="result-actions">
+                <button th:onclick="'startChat(\'' + ${result.username} + '\')'" class="btn btn-small btn-primary">
+                    Chat
+                </button>
+            </div>
+        </div>
+        
+        <!-- Chat Result -->
+        <div th:if="${result.type == 'chat'}" class="chat-result">
+            <div class="result-icon">
+                <i class="icon-chat"></i>
+            </div>
+            <div class="result-content">
+                <div class="result-title" th:text="${result.title}">Chat with User</div>
+                <div class="result-preview" th:text="${result.lastMessage}">Last message...</div>
+                <div class="result-meta">
+                    <span th:text="${result.messageCount} + ' messages'">15 messages</span> • 
+                    <span th:text="${result.lastActivity}">3 hours ago</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

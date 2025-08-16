@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Message Bubble</title>
+</head>
+<body>
+    <!-- Message Bubble Fragment -->
+    <div th:fragment="message-bubble" class="message-bubble" 
+         th:classappend="${message.isOwnMessage} ? 'own-message' : 'other-message'"
+         th:data-message-id="${message.id}">
+        
+        <!-- Message Header (for other user's messages) -->
+        <div th:if="${!message.isOwnMessage}" class="message-header">
+            <span class="sender-name" th:text="${message.senderUsername}">Sender</span>
+            <span class="message-time" th:text="${message.formattedTime}">12:30</span>
+        </div>
+        
+        <!-- Message Content -->
+        <div class="message-content">
+            <!-- Text Message -->
+            <div th:if="${message.messageType.name() == 'TEXT'}" class="text-message">
+                <p th:text="${message.messageContent}">Message content here...</p>
+            </div>
+            
+            <!-- Image Message -->
+            <div th:if="${message.messageType.name() == 'IMAGE'}" class="image-message">
+                <div th:if="${message.isImageHidden}" class="image-hidden">
+                    <i class="icon-image"></i>
+                    <span>Image hidden</span>
+                    <button onclick="showImage(this)" class="show-image-btn">Show</button>
+                </div>
+                <div th:unless="${message.isImageHidden}" class="image-visible">
+                    <img th:src="${message.imageUrl}" th:alt="'Image from ' + ${message.senderUsername}" class="message-image">
+                    <button onclick="hideImage(this)" class="hide-image-btn">Hide</button>
+                </div>
+            </div>
+            
+            <!-- File Message -->
+            <div th:if="${message.messageType.name() == 'FILE'}" class="file-message">
+                <div class="file-info">
+                    <i class="icon-file"></i>
+                    <div class="file-details">
+                        <span class="file-name" th:text="${message.fileName}">document.pdf</span>
+                        <span class="file-size" th:text="${message.fileSize != null ? #numbers.formatDecimal(message.fileSize / 1024, 1, 1) + ' KB' : ''}">1.2 KB</span>
+                    </div>
+                    <a th:href="${message.fileUrl}" class="download-btn" download>
+                        <i class="icon-download"></i>
+                    </a>
+                </div>
+            </div>
+            
+            <!-- System Message -->
+            <div th:if="${message.messageType.name() == 'SYSTEM'}" class="system-message">
+                <i class="icon-info"></i>
+                <span th:text="${message.messageContent}">System message</span>
+            </div>
+        </div>
+        
+        <!-- Message Footer (for own messages) -->
+        <div th:if="${message.isOwnMessage}" class="message-footer">
+            <span class="message-time" th:text="${message.formattedTime}">12:30</span>
+            <span th:if="${message.isRead}" class="read-indicator" title="Read">✓✓</span>
+            <span th:unless="${message.isRead}" class="sent-indicator" title="Sent">✓</span>
+        </div>
+        
+        <!-- Message Actions -->
+        <div class="message-actions">
+            <button class="reply-btn" th:onclick="'replyToMessage(' + ${message.id} + ')'" title="Reply">
+                <i class="icon-reply"></i>
+            </button>
+            <button th:if="${message.isOwnMessage}" class="delete-btn" 
+                    th:onclick="'deleteMessage(' + ${message.id} + ')'" title="Delete">
+                <i class="icon-delete"></i>
+            </button>
+            <button class="copy-btn" th:onclick="'copyMessage(' + ${message.id} + ')'" title="Copy">
+                <i class="icon-copy"></i>
+            </button>
+        </div>
+    </div>
+    
+    <!-- Typing Indicator Fragment -->
+    <div th:fragment="typing-indicator" class="typing-indicator" id="typingIndicator">
+        <div class="typing-avatar">
+            <img src="/images/default-avatar.png" alt="User" class="avatar-img">
+        </div>
+        <div class="typing-content">
+            <span class="typing-user">Someone</span>
+            <span class="typing-text">is typing</span>
+            <div class="typing-dots">
+                <span></span>
+                <span></span>
+                <span></span>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

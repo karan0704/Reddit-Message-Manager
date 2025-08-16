@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Filter Panel</title>
+</head>
+<body>
+    <!-- Filter Panel Fragment -->
+    <div th:fragment="filter-panel" class="filter-panel" id="filterPanel">
+        <div class="filter-header">
+            <h4>Filters</h4>
+            <button onclick="closeFilters()" class="close-btn">×</button>
+        </div>
+        
+        <div class="filter-content">
+            <!-- Date Range Filter -->
+            <div class="filter-section">
+                <h5>Date Range</h5>
+                <div class="date-range">
+                    <div class="date-input-group">
+                        <label for="filterDateFrom">From:</label>
+                        <input type="date" id="filterDateFrom" class="date-input">
+                    </div>
+                    <div class="date-input-group">
+                        <label for="filterDateTo">To:</label>
+                        <input type="date" id="filterDateTo" class="date-input">
+                    </div>
+                </div>
+                <div class="quick-date-filters">
+                    <button onclick="setDateRange('today')" class="quick-filter-btn">Today</button>
+                    <button onclick="setDateRange('week')" class="quick-filter-btn">This Week</button>
+                    <button onclick="setDateRange('month')" class="quick-filter-btn">This Month</button>
+                </div>
+            </div>
+            
+            <!-- User Filter -->
+            <div class="filter-section">
+                <h5>Users</h5>
+                <div class="user-filter">
+                    <input type="text" id="userFilterInput" placeholder="Search users..." 
+                           class="filter-input" onkeyup="searchUsers(this.value)">
+                    <div id="userSuggestions" class="user-suggestions hidden">
+                        <!-- Dynamic user suggestions -->
+                    </div>
+                </div>
+                <div class="selected-users" id="selectedUsers">
+                    <!-- Selected users will appear here -->
+                </div>
+            </div>
+            
+            <!-- Message Type Filter -->
+            <div class="filter-section">
+                <h5>Message Types</h5>
+                <div class="checkbox-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="filterText" checked>
+                        <span class="checkmark"></span>
+                        <i class="icon-text"></i> Text Messages
+                    </label>
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="filterImages" checked>
+                        <span class="checkmark"></span>
+                        <i class="icon-image"></i> Images
+                    </label>
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="filterFiles" checked>
+                        <span class="checkmark"></span>
+                        <i class="icon-file"></i> Files
+                    </label>
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="filterSystem">
+                        <span class="checkmark"></span>
+                        <i class="icon-system"></i> System Messages
+                    </label>
+                </div>
+            </div>
+            
+            <!-- Status Filter -->
+            <div class="filter-section">
+                <h5>Status</h5>
+                <div class="radio-group">
+                    <label class="radio-label">
+                        <input type="radio" name="statusFilter" value="all" checked>
+                        <span class="radio-checkmark"></span>
+                        All Messages
+                    </label>
+                    <label class="radio-label">
+                        <input type="radio" name="statusFilter" value="read">
+                        <span class="radio-checkmark"></span>
+                        Read Only
+                    </label>
+                    <label class="radio-label">
+                        <input type="radio" name="statusFilter" value="unread">
+                        <span class="radio-checkmark"></span>
+                        Unread Only
+                    </label>
+                </div>
+            </div>
+            
+            <!-- Chat Status Filter -->
+            <div class="filter-section">
+                <h5>Chat Status</h5>
+                <div class="checkbox-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="filterPinned">
+                        <span class="checkmark"></span>
+                        <i class="icon-pin"></i> Pinned Chats Only
+                    </label>
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="filterArchived">
+                        <span class="checkmark"></span>
+                        <i class="icon-archive"></i> Include Archived
+                    </label>
+                </div>
+            </div>
+            
+            <!-- Sort Options -->
+            <div class="filter-section">
+                <h5>Sort By</h5>
+                <select id="sortBy" class="filter-select">
+                    <option value="recent">Most Recent</option>
+                    <option value="oldest">Oldest First</option>
+                    <option value="username">Username A-Z</option>
+                    <option value="username_desc">Username Z-A</option>
+                    <option value="message_count">Message Count</option>
+                </select>
+            </div>
+        </div>
+        
+        <!-- Filter Actions -->
+        <div class="filter-actions">
+            <button onclick="applyAdvancedFilters()" class="btn btn-primary">Apply Filters</button>
+            <button onclick="resetFilters()" class="btn btn-secondary">Reset</button>
+            <button onclick="saveFilterPreset()" class="btn btn-outline">Save Preset</button>
+        </div>
+        
+        <!-- Filter Presets -->
+        <div class="filter-presets">
+            <h5>Quick Presets</h5>
+            <div class="preset-buttons">
+                <button onclick="loadPreset('unread_today')" class="preset-btn">Unread Today</button>
+                <button onclick="loadPreset('images_week')" class="preset-btn">Images This Week</button>
+                <button onclick="loadPreset('important')" class="preset-btn">Important Chats</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Selected User Tag Fragment -->
+    <div th:fragment="user-tag" class="user-tag" th:data-username="${username}">
+        <span class="user-tag-name" th:text="${displayName}">John Doe</span>
+        <button onclick="removeUserFilter(this)" class="remove-tag-btn">×</button>
+    </div>
+</body>
+</html>

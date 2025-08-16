@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Export Modal</title>
+</head>
+<body>
+    <!-- Export Modal Fragment -->
+    <div th:fragment="export-modal" class="modal-overlay" id="exportModal" style="display: none;">
+        <div class="modal modal-large">
+            <div class="modal-header">
+                <h3 class="modal-title">Export Chats</h3>
+                <button class="modal-close" onclick="closeModal('exportModal')">&times;</button>
+            </div>
+            
+            <div class="modal-body export-modal">
+                <div class="export-options">
+                    <div class="export-option" data-format="TXT" onclick="selectExportFormat('TXT', this)">
+                        <div class="option-icon">📄</div>
+                        <h5>Text File (.txt)</h5>
+                        <p>Plain text format, easy to read and share</p>
+                    </div>
+                    
+                    <div class="export-option" data-format="JSON" onclick="selectExportFormat('JSON', this)">
+                        <div class="option-icon">📋</div>
+                        <h5>JSON File (.json)</h5>
+                        <p>Structured data with complete metadata</p>
+                    </div>
+                    
+                    <div class="export-option" data-format="CSV" onclick="selectExportFormat('CSV', this)">
+                        <div class="option-icon">📊</div>
+                        <h5>CSV File (.csv)</h5>
+                        <p>Spreadsheet compatible format</p>
+                    </div>
+                    
+                    <div class="export-option" data-format="HTML" onclick="selectExportFormat('HTML', this)">
+                        <div class="option-icon">🌐</div>
+                        <h5>HTML File (.html)</h5>
+                        <p>Web page format with styling</p>
+                    </div>
+                </div>
+                
+                <div class="export-settings">
+                    <h4>Export Settings</h4>
+                    
+                    <div class="setting-row">
+                        <label>Chat Selection:</label>
+                        <div class="radio-group">
+                            <label class="radio-label">
+                                <input type="radio" name="chatSelection" value="all" checked>
+                                <span class="radio-checkmark"></span>
+                                All Chats
+                            </label>
+                            <label class="radio-label">
+                                <input type="radio" name="chatSelection" value="selected">
+                                <span class="radio-checkmark"></span>
+                                Selected Chats Only
+                            </label>
+                            <label class="radio-label">
+                                <input type="radio" name="chatSelection" value="pinned">
+                                <span class="radio-checkmark"></span>
+                                Pinned Chats Only
+                            </label>
+                            <label class="radio-label">
+                                <input type="radio" name="chatSelection" value="current">
+                                <span class="radio-checkmark"></span>
+                                Current Chat Only
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <div class="setting-row">
+                        <label>Date Range:</label>
+                        <div class="date-range">
+                            <div class="date-input-group">
+                                <label for="exportDateFrom">From:</label>
+                                <input type="date" id="exportDateFrom" class="date-input">
+                            </div>
+                            <div class="date-input-group">
+                                <label for="exportDateTo">To:</label>
+                                <input type="date" id="exportDateTo" class="date-input">
+                            </div>
+                        </div>
+                        <div class="quick-dates">
+                            <button onclick="setExportDateRange('week')" class="btn btn-small">Last Week</button>
+                            <button onclick="setExportDateRange('month')" class="btn btn-small">Last Month</button>
+                            <button onclick="setExportDateRange('year')" class="btn btn-small">Last Year</button>
+                            <button onclick="setExportDateRange('all')" class="btn btn-small">All Time</button>
+                        </div>
+                    </div>
+                    
+                    <div class="setting-row">
+                        <label>Include:</label>
+                        <div class="checkbox-group">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="includeImages" checked>
+                                <span class="checkmark"></span>
+                                Images and Media
+                            </label>
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="includeMetadata" checked>
+                                <span class="checkmark"></span>
+                                Timestamps and Metadata
+                            </label>
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="includeSystemMessages">
+                                <span class="checkmark"></span>
+                                System Messages
+                            </label>
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="includeUserInfo" checked>
+                                <span class="checkmark"></span>
+                                User Information
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <div class="setting-row">
+                        <label for="maxMessages">Message Limit:</label>
+                        <div class="limit-input-group">
+                            <input type="number" id="maxMessages" value="1000" min="1" max="50000" class="limit-input">
+                            <select class="limit-select">
+                                <option value="1000">1,000 messages</option>
+                                <option value="5000">5,000 messages</option>
+                                <option value="10000">10,000 messages</option>
+                                <option value="0">No limit</option>
+                            </select>
+                        </div>
+                        <small>Large exports may take longer to process</small>
+                    </div>
+                    
+                    <div class="setting-row">
+                        <label>File Options:</label>
+                        <div class="checkbox-group">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="compressExport">
+                                <span class="checkmark"></span>
+                                Compress as ZIP file
+                            </label>
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="splitLargeFiles">
+                                <span class="checkmark"></span>
+                                Split large files
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="export-preview">
+                    <h4>Export Preview</h4>
+                    <div class="preview-info">
+                        <p><strong>Format:</strong> <span id="previewFormat">Not selected</span></p>
+                        <p><strong>Estimated size:</strong> <span id="previewSize">Calculating...</span></p>
+                        <p><strong>Number of chats:</strong> <span id="previewChats">0</span></p>
+                        <p><strong>Number of messages:</strong> <span id="previewMessages">0</span></p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="modal-footer">
+                <button onclick="closeModal('exportModal')" class="btn btn-secondary">Cancel</button>
+                <button onclick="startExport()" class="btn btn-primary" id="startExportBtn" disabled>Start Export</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Export Progress Modal Fragment -->
+    <div th:fragment="export-progress-modal" class="modal-overlay" id="exportProgressModal" style="display: none;">
+        <div class="modal modal-medium">
+            <div class="modal-header">
+                <h3 class="modal-title">Exporting Chats</h3>
+            </div>
+            
+            <div class="modal-body progress-modal">
+                <div class="export-info">
+                    <p>Format: <strong id="exportFormatInfo">JSON</strong></p>
+                    <p>Started: <strong id="exportStartTime">Now</strong></p>
+                </div>
+                
+                <div class="progress-container">
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="exportProgressFill" style="width: 0%"></div>
+                    </div>
+                    <div class="progress-text" id="exportProgressText">Preparing export...</div>
+                    <div class="progress-percentage" id="exportProgressPercentage">0%</div>
+                </div>
+                
+                <div class="export-status" id="exportStatus">
+                    <p>Status: <span id="exportStatusText">In Progress</span></p>
+                    <p id="exportDetails">Processing messages...</p>
+                    <p id="exportETA">Estimated time remaining: Calculating...</p>
+                </div>
+                
+                <div class="export-log" id="exportLog">
+                    <h5>Export Log:</h5>
+                    <div class="log-content" id="exportLogContent">
+                        <p>Export started...</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="modal-footer">
+                <button onclick="cancelExport()" class="btn btn-danger" id="cancelExportBtn">Cancel Export</button>
+                <button onclick="closeModal('exportProgressModal')" class="btn btn-primary" id="closeProgressBtn" disabled>Close</button>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

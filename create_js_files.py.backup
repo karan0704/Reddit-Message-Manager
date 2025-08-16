@@ -1,0 +1,3193 @@
+import os
+
+def create_js_files():
+    # Base path from your previous conversation
+    base_path = "D:\\Karan Ticket Project\\Reddit Message Manager"
+
+    # JavaScript files for the local chat application
+    js_files = [
+        {
+            "path": "src\\main\\resources\\static\\js\\main.js",
+            "content": """// Main JavaScript - Core functionality
+console.log('Reddit Chat Application loaded');
+
+// Global variables
+let currentUser = null;
+let currentChat = null;
+let socket = null;
+let isConnected = false;
+let typingTimer = null;
+let messageCache = new Map();
+let bulkModeActive = false;
+
+// Configuration
+const CONFIG = {
+    TYPING_TIMEOUT: 1000,
+    MESSAGE_LIMIT: 50,
+    RECONNECT_ATTEMPTS: 5,
+    RECONNECT_DELAY: 3000,
+    API_BASE_URL: '/api',
+    WS_URL: '/ws/chat'
+};
+
+// Initialize application
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('Initializing Reddit Chat Application...');
+    
+    initializeApp();
+    setupEventListeners();
+    checkAuthStatus();
+});
+
+/**
+ * Initialize the application
+ */
+async function initializeApp() {
+    try {
+        // Load user chats
+        await loadUserChats();
+        
+        // Initialize WebSocket connection
+        initializeWebSocket();
+        
+        // Setup keyboard shortcuts
+        setupKeyboardShortcuts();
+        
+        // Initialize tooltips
+        initializeTooltips();
+        
+        console.log('Application initialized successfully');
+        
+    } catch (error) {
+        console.error('Failed to initialize application:', error);
+        showNotification('Failed to initialize application', 'error');
+    }
+}
+
+/**
+ * Setup global event listeners
+ */
+function setupEventListeners() {
+    // Search input
+    const searchInput = document.getElementById('mainSearchInput');
+    if (searchInput) {
+        searchInput.addEventListener('input', handleSearchInput);
+        searchInput.addEventListener('keydown', handleSearchKeydown);
+    }
+    
+    // Message input
+    const messageInput = document.getElementById('messageInput');
+    if (messageInput) {
+        messageInput.addEventListener('keydown', handleMessageInput);
+        messageInput.addEventListener('input', handleTypingIndicator);
+    }
+    
+    // Send button
+    const sendBtn = document.querySelector('.send-btn');
+    if (sendBtn) {
+        sendBtn.addEventListener('click', sendMessage);
+    }
+    
+    // Bulk select button
+    const bulkSelectBtn = document.getElementById('bulkSelectBtn');
+    if (bulkSelectBtn) {
+        bulkSelectBtn.addEventListener('click', toggleBulkMode);
+    }
+    
+    // Filter buttons
+    document.querySelectorAll('.filter-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            filterChatsByType(this.dataset.filter);
+        });
+    });
+    
+    // Window events
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    window.addEventListener('focus', handleWindowFocus);
+    window.addEventListener('blur', handleWindowBlur);
+    
+    // Handle modal close on outside click
+    document.addEventListener('click', handleModalOutsideClick);
+    
+    // Handle escape key for modal close
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            closeAllModals();
+        }
+    });
+}
+
+/**
+ * Setup keyboard shortcuts
+ */
+function setupKeyboardShortcuts() {
+    document.addEventListener('keydown', function(e) {
+        // Don't trigger shortcuts when typing in inputs
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+            return;
+        }
+        
+        if (e.ctrlKey || e.metaKey) {
+            switch (e.key) {
+                case 'k':
+                    e.preventDefault();
+                    focusSearch();
+                    break;
+                case 'n':
+                    e.preventDefault();
+                    showNewChatModal();
+                    break;
+                case 'f':
+                    e.preventDefault();
+                    toggleFilters();
+                    break;
+                case ',':
+                    e.preventDefault();
+                    showSettingsModal();
+                    break;
+            }
+        }
+        
+        // Single key shortcuts
+        switch (e.key) {
+            case '/':
+                e.preventDefault();
+                focusSearch();
+                break;
+            case 'Escape':
+                closeAllModals();
+                break;
+        }
+    });
+}
+
+/**
+ * Check authentication status
+ */
+async function checkAuthStatus() {
+    try {
+        const response = await fetch(`${CONFIG.API_BASE_URL}/auth/status`);
+        const data = await response.json();
+        
+        if (data.authenticated) {
+            currentUser = data;
+            updateUserInfo(data);
+            console.log('User authenticated:', data.username);
+        } else {
+            // Redirect to login if not authenticated
+            window.location.href = '/login';
+        }
+        
+    } catch (error) {
+        console.error('Auth check failed:', error);
+        showNotification('Authentication check failed', 'error');
+    }
+}
+
+/**
+ * Update user info in UI
+ */
+function updateUserInfo(userData) {
+    const usernameElements = document.querySelectorAll('.username');
+    usernameElements.forEach(el => {
+        el.textContent = userData.displayName || userData.username;
+    });
+    
+    // Update avatar if available
+    const avatarElements = document.querySelectorAll('.user-avatar');
+    avatarElements.forEach(el => {
+        if (userData.avatarUrl) {
+            el.src = userData.avatarUrl;
+        }
+    });
+}
+
+/**
+ * Handle search input
+ */
+function handleSearchInput(e) {
+    const query = e.target.value.trim();
+    
+    if (query.length === 0) {
+        clearSearchResults();
+        return;
+    }
+    
+    if (query.length < 2) {
+        return;
+    }
+    
+    // Debounce search
+    clearTimeout(this.searchTimeout);
+    this.searchTimeout = setTimeout(() => {
+        performSearch(query);
+    }, 300);
+}
+
+/**
+ * Handle search keydown
+ */
+function handleSearchKeydown(e) {
+    if (e.key === 'Enter') {
+        e.preventDefault();
+        const query = e.target.value.trim();
+        if (query) {
+            performAdvancedSearch(query);
+        }
+    }
+    
+    if (e.key === 'Escape') {
+        e.target.value = '';
+        clearSearchResults();
+    }
+}
+
+/**
+ * Handle message input keydown
+ */
+function handleMessageInput(e) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+    }
+    
+    // Auto-resize textarea
+    autoResizeTextarea(e.target);
+}
+
+/**
+ * Auto-resize textarea
+ */
+function autoResizeTextarea(textarea) {
+    textarea.style.height = 'auto';
+    textarea.style.height = Math.min(textarea.scrollHeight, 120) + 'px';
+}
+
+/**
+ * Handle typing indicator
+ */
+function handleTypingIndicator(e) {
+    if (!currentChat || !socket || !isConnected) return;
+    
+    const messageText = e.target.value.trim();
+    
+    // Clear previous timer
+    clearTimeout(typingTimer);
+    
+    if (messageText.length > 0) {
+        // Send typing start
+        sendTypingIndicator(true);
+        
+        // Set timer to send typing stop
+        typingTimer = setTimeout(() => {
+            sendTypingIndicator(false);
+        }, CONFIG.TYPING_TIMEOUT);
+    } else {
+        // Send typing stop immediately
+        sendTypingIndicator(false);
+    }
+}
+
+/**
+ * Send typing indicator via WebSocket
+ */
+function sendTypingIndicator(isTyping) {
+    if (!socket || !isConnected || !currentChat) return;
+    
+    const message = {
+        type: 'typing',
+        chatId: currentChat.id,
+        isTyping: isTyping
+    };
+    
+    socket.send(JSON.stringify(message));
+}
+
+/**
+ * Handle window focus
+ */
+function handleWindowFocus() {
+    if (currentChat) {
+        markChatAsRead(currentChat.id);
+    }
+}
+
+/**
+ * Handle window blur
+ */
+function handleWindowBlur() {
+    // Stop typing indicator when window loses focus
+    if (typingTimer) {
+        clearTimeout(typingTimer);
+        sendTypingIndicator(false);
+    }
+}
+
+/**
+ * Handle before unload
+ */
+function handleBeforeUnload() {
+    if (socket && isConnected) {
+        socket.close();
+    }
+}
+
+/**
+ * Handle modal outside click
+ */
+function handleModalOutsideClick(e) {
+    if (e.target.classList.contains('modal-overlay')) {
+        closeModal(e.target.querySelector('.modal'));
+    }
+}
+
+/**
+ * Focus search input
+ */
+function focusSearch() {
+    const searchInput = document.getElementById('mainSearchInput') || 
+                       document.getElementById('chatSearch');
+    if (searchInput) {
+        searchInput.focus();
+        searchInput.select();
+    }
+}
+
+/**
+ * Show notification
+ */
+function showNotification(message, type = 'info', duration = 3000) {
+    // Remove existing notifications
+    document.querySelectorAll('.notification').forEach(n => n.remove());
+    
+    const notification = document.createElement('div');
+    notification.className = `notification notification-${type}`;
+    notification.innerHTML = `
+        <span>${message}</span>
+        <button onclick="this.parentElement.remove()" class="notification-close">×</button>
+    `;
+    
+    // Add to page
+    document.body.appendChild(notification);
+    
+    // Animate in
+    setTimeout(() => notification.classList.add('show'), 100);
+    
+    // Auto remove
+    if (duration > 0) {
+        setTimeout(() => {
+            notification.classList.remove('show');
+            setTimeout(() => notification.remove(), 300);
+        }, duration);
+    }
+}
+
+/**
+ * Show loading indicator
+ */
+function showLoading(container, message = 'Loading...') {
+    if (typeof container === 'string') {
+        container = document.getElementById(container);
+    }
+    
+    if (container) {
+        container.innerHTML = `
+            <div class="loading">
+                <div class="spinner"></div>
+                <span>${message}</span>
+            </div>
+        `;
+    }
+}
+
+/**
+ * Format date for display
+ */
+function formatDate(date) {
+    if (!date) return '';
+    
+    const now = new Date();
+    const messageDate = new Date(date);
+    const diffTime = Math.abs(now - messageDate);
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    if (messageDate.toDateString() === now.toDateString()) {
+        return messageDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    } else if (diffDays <= 7) {
+        return messageDate.toLocaleDateString([], { weekday: 'short', hour: '2-digit', minute: '2-digit' });
+    } else {
+        return messageDate.toLocaleDateString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    }
+}
+
+/**
+ * Escape HTML to prevent XSS
+ */
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+/**
+ * Debounce function
+ */
+function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
+}
+
+/**
+ * Throttle function
+ */
+function throttle(func, wait) {
+    let inThrottle;
+    return function() {
+        const args = arguments;
+        const context = this;
+        if (!inThrottle) {
+            func.apply(context, args);
+            inThrottle = true;
+            setTimeout(() => inThrottle = false, wait);
+        }
+    }
+}
+
+/**
+ * Generate unique ID
+ */
+function generateId() {
+    return Math.random().toString(36).substr(2, 9);
+}
+
+/**
+ * Copy text to clipboard
+ */
+async function copyToClipboard(text) {
+    try {
+        await navigator.clipboard.writeText(text);
+        showNotification('Copied to clipboard', 'success', 1500);
+    } catch (err) {
+        console.error('Failed to copy text: ', err);
+        showNotification('Failed to copy text', 'error');
+    }
+}
+
+/**
+ * Initialize tooltips
+ */
+function initializeTooltips() {
+    document.querySelectorAll('[title]').forEach(element => {
+        element.addEventListener('mouseenter', showTooltip);
+        element.addEventListener('mouseleave', hideTooltip);
+    });
+}
+
+/**
+ * Show tooltip
+ */
+function showTooltip(e) {
+    const tooltip = document.createElement('div');
+    tooltip.className = 'tooltip';
+    tooltip.textContent = e.target.title;
+    
+    // Remove title to prevent browser tooltip
+    e.target.setAttribute('data-title', e.target.title);
+    e.target.removeAttribute('title');
+    
+    document.body.appendChild(tooltip);
+    
+    // Position tooltip
+    const rect = e.target.getBoundingClientRect();
+    tooltip.style.left = rect.left + (rect.width / 2) - (tooltip.offsetWidth / 2) + 'px';
+    tooltip.style.top = rect.top - tooltip.offsetHeight - 8 + 'px';
+    
+    setTimeout(() => tooltip.classList.add('show'), 100);
+}
+
+/**
+ * Hide tooltip
+ */
+function hideTooltip(e) {
+    const tooltip = document.querySelector('.tooltip');
+    if (tooltip) {
+        tooltip.remove();
+    }
+    
+    // Restore title
+    if (e.target.getAttribute('data-title')) {
+        e.target.title = e.target.getAttribute('data-title');
+        e.target.removeAttribute('data-title');
+    }
+}
+
+/**
+ * Close all modals
+ */
+function closeAllModals() {
+    document.querySelectorAll('.modal-overlay').forEach(modal => {
+        closeModal(modal.querySelector('.modal'));
+    });
+}
+
+/**
+ * Format file size
+ */
+function formatFileSize(bytes) {
+    if (bytes === 0) return '0 Bytes';
+    
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
+
+/**
+ * Validate email
+ */
+function validateEmail(email) {
+    const re = /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/;
+    return re.test(email);
+}
+
+/**
+ * Get URL parameters
+ */
+function getUrlParameter(name) {
+    const urlParams = new URLSearchParams(window.location.search);
+    return urlParams.get(name);
+}
+
+/**
+ * Update URL without reload
+ */
+function updateUrl(params) {
+    const url = new URL(window.location);
+    Object.keys(params).forEach(key => {
+        if (params[key] !== null && params[key] !== undefined) {
+            url.searchParams.set(key, params[key]);
+        } else {
+            url.searchParams.delete(key);
+        }
+    });
+    window.history.pushState({}, '', url);
+}
+
+/**
+ * Error handler
+ */
+function handleError(error, context = '') {
+    console.error(`Error${context ? ' in ' + context : ''}:`, error);
+    
+    let message = 'An error occurred';
+    if (error.response) {
+        message = error.response.data?.message || error.response.statusText;
+    } else if (error.message) {
+        message = error.message;
+    }
+    
+    showNotification(message, 'error');
+}
+
+// Export functions for use in other modules
+window.ChatApp = {
+    showNotification,
+    showLoading,
+    formatDate,
+    escapeHtml,
+    copyToClipboard,
+    formatFileSize,
+    validateEmail,
+    handleError,
+    debounce,
+    throttle,
+    generateId
+};
+
+console.log('Main JavaScript loaded successfully');
+"""
+        },
+
+        {
+            "path": "src\\main\\resources\\static\\js\\chat.js",
+            "content": """// Chat functionality
+console.log('Chat module loaded');
+
+// Chat-specific variables
+let activeChat = null;
+let messageHistory = [];
+let isLoadingMessages = false;
+let messageContainer = null;
+let shouldAutoScroll = true;
+
+/**
+ * Load user chats
+ */
+async function loadUserChats(filter = 'all') {
+    try {
+        showLoading('chatList', 'Loading chats...');
+        
+        const params = new URLSearchParams();
+        if (filter === 'pinned') params.append('onlyPinned', 'true');
+        if (filter === 'unread') params.append('onlyUnread', 'true');
+        
+        const response = await fetch(`${CONFIG.API_BASE_URL}/chat/list?${params}`);
+        const data = await response.json();
+        
+        if (response.ok) {
+            displayChats(data.chats);
+            updateChatStats(data.chats);
+        } else {
+            throw new Error(data.error || 'Failed to load chats');
+        }
+        
+    } catch (error) {
+        console.error('Error loading chats:', error);
+        document.getElementById('chatList').innerHTML = `
+            <div class="error-message">
+                <p>Failed to load chats</p>
+                <button onclick="loadUserChats()" class="btn btn-primary">Retry</button>
+            </div>
+        `;
+    }
+}
+
+/**
+ * Display chats in sidebar
+ */
+function displayChats(chats) {
+    const chatList = document.getElementById('chatList');
+    
+    if (!chats || chats.length === 0) {
+        chatList.innerHTML = `
+            <div class="empty-state">
+                <h4>No chats yet</h4>
+                <p>Start a conversation with someone!</p>
+                <button onclick="showNewChatModal()" class="btn btn-primary">New Chat</button>
+            </div>
+        `;
+        return;
+    }
+    
+    const chatHtml = chats.map(chat => createChatItemHtml(chat)).join('');
+    chatList.innerHTML = chatHtml;
+    
+    // Add click listeners to chat items
+    chatList.querySelectorAll('.chat-item').forEach(item => {
+        item.addEventListener('click', function(e) {
+            if (e.target.closest('.chat-checkbox') || e.target.closest('.pin-btn')) {
+                return; // Don't open chat if clicking checkbox or pin button
+            }
+            
+            const chatId = parseInt(this.dataset.chatId);
+            openChat(chatId);
+        });
+    });
+}
+
+/**
+ * Create HTML for a chat item
+ */
+function createChatItemHtml(chat) {
+    const isActive = activeChat && activeChat.id === chat.id;
+    const lastMessageTime = chat.lastMessageTimestamp ? formatDate(chat.lastMessageTimestamp) : '';
+    const unreadBadge = chat.hasUnread && chat.unreadCount > 0 ? 
+        `<span class="unread-count">${chat.unreadCount}</span>` : '';
+    const pinnedIcon = chat.isPinned ? '<span class="pinned-indicator">📌</span>' : '';
+    
+    return `
+        <div class="chat-item ${isActive ? 'active' : ''}" data-chat-id="${chat.id}">
+            <div class="chat-avatar">
+                <img src="/api/user/${encodeURIComponent(chat.otherUsername || 'unknown')}/avatar" 
+                     alt="${escapeHtml(chat.otherUsername || 'Unknown')}" 
+                     class="avatar-img"
+                     onerror="this.src='/images/default-avatar.png'">
+                ${chat.hasUnread ? '<div class="unread-indicator"></div>' : ''}
+            </div>
+            
+            <div class="chat-content">
+                <div class="chat-header">
+                    <span class="chat-username">${escapeHtml(chat.otherUsername || 'Unknown User')}</span>
+                    <span class="chat-time">${lastMessageTime}</span>
+                </div>
+                
+                <div class="chat-preview">
+                    <span class="last-message">${escapeHtml(chat.lastMessage || 'No messages yet')}</span>
+                    <div class="chat-indicators">
+                        ${pinnedIcon}
+                        ${unreadBadge}
+                    </div>
+                </div>
+            </div>
+            
+            <div class="chat-actions">
+                <button class="pin-btn" onclick="event.stopPropagation(); togglePin(${chat.id})" 
+                        title="${chat.isPinned ? 'Unpin' : 'Pin'}">
+                    <i class="${chat.isPinned ? 'icon-pin-filled' : 'icon-pin'}">📌</i>
+                </button>
+                <div class="chat-checkbox">
+                    <input type="checkbox" id="chat-${chat.id}" class="chat-select-checkbox" 
+                           onchange="handleChatSelection(${chat.id}, this.checked)">
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+/**
+ * Open a chat
+ */
+async function openChat(chatId) {
+    try {
+        // Find chat in current list
+        const chatElement = document.querySelector(`[data-chat-id="${chatId}"]`);
+        if (!chatElement) {
+            console.error('Chat not found:', chatId);
+            return;
+        }
+        
+        // Update active chat UI
+        document.querySelectorAll('.chat-item').forEach(item => {
+            item.classList.remove('active');
+        });
+        chatElement.classList.add('active');
+        
+        // Get chat info
+        const chatUsername = chatElement.querySelector('.chat-username').textContent;
+        
+        // Set current chat
+        activeChat = { id: chatId, otherUsername: chatUsername };
+        currentChat = activeChat; // For WebSocket usage
+        
+        // Show chat panel
+        showChatPanel(activeChat);
+        
+        // Load messages
+        await loadChatMessages(chatId);
+        
+        // Mark as read
+        markChatAsRead(chatId);
+        
+        // Join chat via WebSocket
+        joinChatWebSocket(chatId);
+        
+        // On mobile, hide sidebar
+        if (window.innerWidth <= 768) {
+            document.body.classList.add('mobile-chat-active');
+        }
+        
+    } catch (error) {
+        console.error('Error opening chat:', error);
+        showNotification('Failed to open chat', 'error');
+    }
+}
+
+/**
+ * Show chat panel
+ */
+function showChatPanel(chat) {
+    const noChatSelected = document.getElementById('noChatSelected');
+    const activeChatContainer = document.getElementById('activeChatContainer');
+    
+    if (noChatSelected) noChatSelected.classList.add('hidden');
+    if (activeChatContainer) activeChatContainer.classList.remove('hidden');
+    
+    // Update chat header
+    const chatUsername = document.querySelector('.active-chat .chat-username');
+    const onlineStatus = document.querySelector('.active-chat .online-status');
+    
+    if (chatUsername) chatUsername.textContent = chat.otherUsername;
+    if (onlineStatus) onlineStatus.textContent = 'Online'; // TODO: Get real status
+    
+    // Initialize message container
+    messageContainer = document.getElementById('messagesContainer');
+}
+
+/**
+ * Load chat messages
+ */
+async function loadChatMessages(chatId, page = 0) {
+    if (isLoadingMessages) return;
+    
+    try {
+        isLoadingMessages = true;
+        
+        if (page === 0) {
+            showLoading('messagesContainer', 'Loading messages...');
+        }
+        
+        const response = await fetch(`${CONFIG.API_BASE_URL}/chat/${chatId}/messages?page=${page}&size=${CONFIG.MESSAGE_LIMIT}`);
+        const data = await response.json();
+        
+        if (response.ok) {
+            if (page === 0) {
+                messageHistory = data.messages || [];
+                displayMessages(messageHistory);
+            } else {
+                messageHistory = [...(data.messages || []), ...messageHistory];
+                prependMessages(data.messages || []);
+            }
+            
+            // Scroll to bottom for new chat or maintain position for pagination
+            if (page === 0) {
+                setTimeout(scrollToBottom, 100);
+            }
+            
+        } else {
+            throw new Error(data.error || 'Failed to load messages');
+        }
+        
+    } catch (error) {
+        console.error('Error loading messages:', error);
+        if (messageContainer) {
+            messageContainer.innerHTML = `
+                <div class="error-message">
+                    <p>Failed to load messages</p>
+                    <button onclick="loadChatMessages(${chatId})" class="btn btn-primary">Retry</button>
+                </div>
+            `;
+        }
+    } finally {
+        isLoadingMessages = false;
+    }
+}
+
+/**
+ * Display messages
+ */
+function displayMessages(messages) {
+    if (!messageContainer) return;
+    
+    if (!messages || messages.length === 0) {
+        messageContainer.innerHTML = `
+            <div class="empty-state">
+                <p>No messages yet. Start the conversation!</p>
+            </div>
+        `;
+        return;
+    }
+    
+    const messagesHtml = messages.map(message => createMessageHtml(message)).join('');
+    messageContainer.innerHTML = messagesHtml;
+    
+    // Setup message interactions
+    setupMessageInteractions();
+}
+
+/**
+ * Prepend messages (for pagination)
+ */
+function prependMessages(messages) {
+    if (!messageContainer || !messages || messages.length === 0) return;
+    
+    const messagesHtml = messages.map(message => createMessageHtml(message)).join('');
+    messageContainer.insertAdjacentHTML('afterbegin', messagesHtml);
+    
+    // Setup interactions for new messages
+    setupMessageInteractions();
+}
+
+/**
+ * Create HTML for a message
+ */
+function createMessageHtml(message) {
+    const isOwn = message.isOwnMessage || (currentUser && message.senderUsername === currentUser.username);
+    const messageClass = isOwn ? 'own-message' : 'other-message';
+    const formattedTime = message.formattedTime || formatDate(message.createdAt);
+    
+    let contentHtml = '';
+    
+    switch (message.messageType) {
+        case 'TEXT':
+            contentHtml = `<div class="text-message"><p>${escapeHtml(message.messageContent)}</p></div>`;
+            break;
+            
+        case 'IMAGE':
+            contentHtml = createImageMessageHtml(message);
+            break;
+            
+        case 'FILE':
+            contentHtml = createFileMessageHtml(message);
+            break;
+            
+        case 'SYSTEM':
+            return `<div class="system-message"><i class="icon-info">ℹ️</i><span>${escapeHtml(message.messageContent)}</span></div>`;
+            
+        default:
+            contentHtml = `<div class="text-message"><p>${escapeHtml(message.messageContent || '')}</p></div>`;
+    }
+    
+    return `
+        <div class="message-bubble ${messageClass}" data-message-id="${message.id}">
+            ${!isOwn ? `
+                <div class="message-header">
+                    <span class="sender-name">${escapeHtml(message.senderUsername)}</span>
+                    <span class="message-time">${formattedTime}</span>
+                </div>
+            ` : ''}
+            
+            <div class="message-content">
+                ${contentHtml}
+            </div>
+            
+            ${isOwn ? `
+                <div class="message-footer">
+                    <span class="message-time">${formattedTime}</span>
+                    <span class="${message.isRead ? 'read-indicator' : 'sent-indicator'}" 
+                          title="${message.isRead ? 'Read' : 'Sent'}">
+                        ${message.isRead ? '✓✓' : '✓'}
+                    </span>
+                </div>
+            ` : ''}
+            
+            <div class="message-actions">
+                <button onclick="replyToMessage(${message.id})" title="Reply">↩️</button>
+                ${isOwn ? `<button onclick="deleteMessage(${message.id})" title="Delete">🗑️</button>` : ''}
+                <button onclick="copyMessage(${message.id})" title="Copy">📋</button>
+            </div>
+        </div>
+    `;
+}
+
+/**
+ * Create image message HTML
+ */
+function createImageMessageHtml(message) {
+    if (message.isImageHidden) {
+        return `
+            <div class="image-message">
+                <div class="image-hidden">
+                    <i class="icon-image">🖼️</i>
+                    <span>Image hidden</span>
+                    <button onclick="showImage(this, '${message.imageUrl}')" class="show-image-btn">Show</button>
+                </div>
+            </div>
+        `;
+    } else {
+        return `
+            <div class="image-message">
+                <div class="image-visible">
+                    <img src="${message.imageUrl}" alt="Image from ${escapeHtml(message.senderUsername)}" 
+                         class="message-image" onclick="openImageViewer('${message.imageUrl}')">
+                    <button onclick="hideImage(this)" class="hide-image-btn">Hide</button>
+                </div>
+            </div>
+        `;
+    }
+}
+
+/**
+ * Create file message HTML
+ */
+function createFileMessageHtml(message) {
+    const fileSize = message.fileSize ? formatFileSize(message.fileSize) : '';
+    
+    return `
+        <div class="file-message">
+            <div class="file-info">
+                <i class="icon-file">📄</i>
+                <div class="file-details">
+                    <span class="file-name">${escapeHtml(message.fileName || 'Unknown file')}</span>
+                    <span class="file-size">${fileSize}</span>
+                </div>
+                <a href="${message.fileUrl}" class="download-btn" download title="Download">⬇️</a>
+            </div>
+        </div>
+    `;
+}
+
+/**
+ * Setup message interactions
+ */
+function setupMessageInteractions() {
+    // Setup scroll listener for auto-scroll detection
+    if (messageContainer) {
+        messageContainer.addEventListener('scroll', handleMessageScroll);
+    }
+    
+    // Setup intersection observer for read receipts
+    setupReadReceiptObserver();
+}
+
+/**
+ * Handle message container scroll
+ */
+function handleMessageScroll() {
+    if (!messageContainer) return;
+    
+    const { scrollTop, scrollHeight, clientHeight } = messageContainer;
+    const isAtBottom = scrollTop + clientHeight >= scrollHeight - 50;
+    
+    shouldAutoScroll = isAtBottom;
+    
+    // Show/hide scroll to bottom button
+    const scrollBtn = document.querySelector('.scroll-to-bottom');
+    if (scrollBtn) {
+        scrollBtn.classList.toggle('hidden', isAtBottom);
+    }
+    
+    // Load more messages if scrolled to top
+    if (scrollTop === 0 && !isLoadingMessages && messageHistory.length >= CONFIG.MESSAGE_LIMIT) {
+        const currentChatId = activeChat?.id;
+        if (currentChatId) {
+            const page = Math.floor(messageHistory.length / CONFIG.MESSAGE_LIMIT);
+            loadChatMessages(currentChatId, page);
+        }
+    }
+}
+
+/**
+ * Setup read receipt observer
+ */
+function setupReadReceiptObserver() {
+    const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                const messageElement = entry.target;
+                const messageId = messageElement.dataset.messageId;
+                // Mark message as seen (implement if needed)
+            }
+        });
+    }, { threshold: 0.5 });
+    
+    // Observe all message bubbles
+    document.querySelectorAll('.message-bubble:not(.own-message)').forEach(msg => {
+        observer.observe(msg);
+    });
+}
+
+/**
+ * Send message
+ */
+async function sendMessage() {
+    const messageInput = document.getElementById('messageInput');
+    if (!messageInput || !activeChat) return;
+    
+    const messageText = messageInput.value.trim();
+    if (!messageText) return;
+    
+    try {
+        // Clear input immediately
+        messageInput.value = '';
+        autoResizeTextarea(messageInput);
+        
+        // Stop typing indicator
+        sendTypingIndicator(false);
+        
+        // Create message object
+        const messageData = {
+            messageContent: messageText,
+            messageType: 'TEXT'
+        };
+        
+        // Send via API
+        const response = await fetch(`${CONFIG.API_BASE_URL}/chat/${activeChat.id}/send`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(messageData)
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            // Add message to UI immediately
+            addMessageToUI(data.message);
+            
+            // Send via WebSocket for real-time delivery
+            if (socket && isConnected) {
+                socket.send(JSON.stringify({
+                    type: 'chat_message',
+                    chatId: activeChat.id,
+                    content: messageText,
+                    messageType: 'TEXT'
+                }));
+            }
+            
+            // Update chat in sidebar
+            updateChatInSidebar(activeChat.id, messageText);
+            
+        } else {
+            throw new Error(data.error || 'Failed to send message');
+        }
+        
+    } catch (error) {
+        console.error('Error sending message:', error);
+        showNotification('Failed to send message', 'error');
+        
+        // Restore message text
+        messageInput.value = messageText;
+    }
+}
+
+/**
+ * Add message to UI
+ */
+function addMessageToUI(message) {
+    if (!messageContainer) return;
+    
+    const messageHtml = createMessageHtml(message);
+    messageContainer.insertAdjacentHTML('beforeend', messageHtml);
+    
+    // Add to message history
+    messageHistory.push(message);
+    
+    // Scroll to bottom if user was at bottom
+    if (shouldAutoScroll) {
+        setTimeout(scrollToBottom, 100);
+    }
+    
+    // Setup interactions for new message
+    setupMessageInteractions();
+}
+
+/**
+ * Update chat in sidebar
+ */
+function updateChatInSidebar(chatId, lastMessage) {
+    const chatItem = document.querySelector(`[data-chat-id="${chatId}"]`);
+    if (!chatItem) return;
+    
+    const lastMessageElement = chatItem.querySelector('.last-message');
+    const chatTimeElement = chatItem.querySelector('.chat-time');
+    
+    if (lastMessageElement) {
+        lastMessageElement.textContent = lastMessage.length > 50 ? 
+            lastMessage.substring(0, 50) + '...' : lastMessage;
+    }
+    
+    if (chatTimeElement) {
+        chatTimeElement.textContent = formatDate(new Date());
+    }
+    
+    // Move chat to top
+    const chatList = document.getElementById('chatList');
+    if (chatList && chatItem.parentNode === chatList) {
+        chatList.insertBefore(chatItem, chatList.firstChild);
+    }
+}
+
+/**
+ * Scroll to bottom
+ */
+function scrollToBottom() {
+    if (messageContainer) {
+        messageContainer.scrollTop = messageContainer.scrollHeight;
+    }
+}
+
+/**
+ * Mark chat as read
+ */
+async function markChatAsRead(chatId) {
+    try {
+        const response = await fetch(`${CONFIG.API_BASE_URL}/chat/${chatId}/read`, {
+            method: 'POST'
+        });
+        
+        if (response.ok) {
+            // Update UI
+            const chatItem = document.querySelector(`[data-chat-id="${chatId}"]`);
+            if (chatItem) {
+                const unreadIndicator = chatItem.querySelector('.unread-indicator');
+                const unreadCount = chatItem.querySelector('.unread-count');
+                
+                if (unreadIndicator) unreadIndicator.remove();
+                if (unreadCount) unreadCount.remove();
+            }
+        }
+        
+    } catch (error) {
+        console.error('Error marking chat as read:', error);
+    }
+}
+
+/**
+ * Toggle pin status
+ */
+async function togglePin(chatId) {
+    try {
+        const response = await fetch(`${CONFIG.API_BASE_URL}/chat/${chatId}/pin`, {
+            method: 'POST'
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            // Update UI
+            const chatItem = document.querySelector(`[data-chat-id="${chatId}"]`);
+            if (chatItem) {
+                const pinBtn = chatItem.querySelector('.pin-btn');
+                const pinnedIndicator = chatItem.querySelector('.pinned-indicator');
+                
+                if (data.isPinned) {
+                    pinBtn.innerHTML = '<i class="icon-pin-filled">📌</i>';
+                    pinBtn.title = 'Unpin';
+                    
+                    if (!pinnedIndicator) {
+                        const indicators = chatItem.querySelector('.chat-indicators');
+                        if (indicators) {
+                            indicators.insertAdjacentHTML('afterbegin', '<span class="pinned-indicator">📌</span>');
+                        }
+                    }
+                } else {
+                    pinBtn.innerHTML = '<i class="icon-pin">📌</i>';
+                    pinBtn.title = 'Pin';
+                    
+                    if (pinnedIndicator) {
+                        pinnedIndicator.remove();
+                    }
+                }
+            }
+            
+            showNotification(data.isPinned ? 'Chat pinned' : 'Chat unpinned', 'success', 1500);
+            
+        } else {
+            throw new Error(data.error || 'Failed to toggle pin');
+        }
+        
+    } catch (error) {
+        console.error('Error toggling pin:', error);
+        showNotification('Failed to update pin status', 'error');
+    }
+}
+
+/**
+ * Filter chats by type
+ */
+function filterChatsByType(filterType) {
+    // Update active filter button
+    document.querySelectorAll('.filter-btn').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    document.querySelector(`[data-filter="${filterType}"]`).classList.add('active');
+    
+    // Reload chats with filter
+    loadUserChats(filterType);
+}
+
+/**
+ * Update chat statistics
+ */
+function updateChatStats(chats) {
+    const totalChats = chats.length;
+    const unreadChats = chats.filter(chat => chat.hasUnread).length;
+    const pinnedChats = chats.filter(chat => chat.isPinned).length;
+    
+    // Update stats in UI if elements exist
+    const statsElements = {
+        totalChats: document.getElementById('totalChats'),
+        unreadChats: document.getElementById('unreadChats'),
+        pinnedChats: document.getElementById('pinnedChats')
+    };
+    
+    Object.keys(statsElements).forEach(key => {
+        const element = statsElements[key];
+        if (element) {
+            element.textContent = eval(key);
+        }
+    });
+}
+
+/**
+ * Join chat via WebSocket
+ */
+function joinChatWebSocket(chatId) {
+    if (socket && isConnected) {
+        socket.send(JSON.stringify({
+            type: 'join_chat',
+            chatId: chatId
+        }));
+    }
+}
+
+// Export chat functions
+window.ChatApp = {
+    ...window.ChatApp,
+    loadUserChats,
+    openChat,
+    sendMessage,
+    togglePin,
+    markChatAsRead,
+    filterChatsByType,
+    scrollToBottom
+};
+
+console.log('Chat module loaded successfully');
+"""
+        },
+
+        {
+            "path": "src\\main\\resources\\static\\js\\websocket.js",
+            "content": """// WebSocket functionality
+console.log('WebSocket module loaded');
+
+let reconnectAttempts = 0;
+let reconnectTimer = null;
+let heartbeatTimer = null;
+
+/**
+ * Initialize WebSocket connection
+ */
+function initializeWebSocket() {
+    if (!currentUser) {
+        console.log('User not authenticated, skipping WebSocket connection');
+        return;
+    }
+    
+    try {
+        const wsUrl = `ws://${window.location.host}${CONFIG.WS_URL}?username=${encodeURIComponent(currentUser.username)}`;
+        
+        console.log('Connecting to WebSocket:', wsUrl);
+        socket = new WebSocket(wsUrl);
+        
+        socket.onopen = handleWebSocketOpen;
+        socket.onmessage = handleWebSocketMessage;
+        socket.onclose = handleWebSocketClose;
+        socket.onerror = handleWebSocketError;
+        
+    } catch (error) {
+        console.error('Failed to initialize WebSocket:', error);
+        showNotification('Failed to connect to real-time messaging', 'error');
+    }
+}
+
+/**
+ * Handle WebSocket connection open
+ */
+function handleWebSocketOpen(event) {
+    console.log('WebSocket connected');
+    isConnected = true;
+    reconnectAttempts = 0;
+    
+    // Clear reconnect timer
+    if (reconnectTimer) {
+        clearTimeout(reconnectTimer);
+        reconnectTimer = null;
+    }
+    
+    // Start heartbeat
+    startHeartbeat();
+    
+    // Show connection status
+    updateConnectionStatus(true);
+    
+    // Send connection confirmation
+    socket.send(JSON.stringify({
+        type: 'ping',
+        timestamp: Date.now()
+    }));
+    
+    showNotification('Connected to real-time messaging', 'success', 2000);
+}
+
+/**
+ * Handle WebSocket message
+ */
+function handleWebSocketMessage(event) {
+    try {
+        const message = JSON.parse(event.data);
+        
+        switch (message.type) {
+            case 'connection':
+                handleConnectionMessage(message);
+                break;
+                
+            case 'new_message':
+                handleNewMessage(message);
+                break;
+                
+            case 'message_sent':
+                handleMessageSent(message);
+                break;
+                
+            case 'typing':
+                handleTypingIndicator(message);
+                break;
+                
+            case 'user_joined':
+                handleUserJoined(message);
+                break;
+                
+            case 'user_left':
+                handleUserLeft(message);
+                break;
+                
+            case 'chat_joined':
+                handleChatJoined(message);
+                break;
+                
+            case 'chat_left':
+                handleChatLeft(message);
+                break;
+                
+            case 'pong':
+                handlePong(message);
+                break;
+                
+            case 'error':
+                handleWebSocketError(message);
+                break;
+                
+            default:
+                console.log('Unknown WebSocket message type:', message.type);
+        }
+        
+    } catch (error) {
+        console.error('Error parsing WebSocket message:', error);
+    }
+}
+
+/**
+ * Handle WebSocket connection close
+ */
+function handleWebSocketClose(event) {
+    console.log('WebSocket disconnected:', event.code, event.reason);
+    isConnected = false;
+    
+    // Stop heartbeat
+    if (heartbeatTimer) {
+        clearInterval(heartbeatTimer);
+        heartbeatTimer = null;
+    }
+    
+    // Update connection status
+    updateConnectionStatus(false);
+    
+    // Attempt to reconnect if not intentional close
+    if (event.code !== 1000 && reconnectAttempts < CONFIG.RECONNECT_ATTEMPTS) {
+        attemptReconnect();
+    } else if (reconnectAttempts >= CONFIG.RECONNECT_ATTEMPTS) {
+        showNotification('Connection lost. Please refresh the page.', 'error', 0);
+    }
+}
+
+/**
+ * Handle WebSocket error
+ */
+function handleWebSocketError(error) {
+    console.error('WebSocket error:', error);
+    
+    if (typeof error === 'object' && error.message) {
+        showNotification('WebSocket error: ' + error.message, 'error');
+    } else {
+        showNotification('Connection error occurred', 'error');
+    }
+    
+    updateConnectionStatus(false);
+}
+
+/**
+ * Attempt to reconnect
+ */
+function attemptReconnect() {
+    if (reconnectTimer) return;
+    
+    reconnectAttempts++;
+    const delay = Math.min(CONFIG.RECONNECT_DELAY * Math.pow(2, reconnectAttempts - 1), 30000);
+    
+    console.log(`Attempting reconnect ${reconnectAttempts}/${CONFIG.RECONNECT_ATTEMPTS} in ${delay}ms`);
+    
+    showNotification(`Reconnecting... (${reconnectAttempts}/${CONFIG.RECONNECT_ATTEMPTS})`, 'info', delay);
+    
+    reconnectTimer = setTimeout(() => {
+        reconnectTimer = null;
+        initializeWebSocket();
+    }, delay);
+}
+
+/**
+ * Start heartbeat to keep connection alive
+ */
+function startHeartbeat() {
+    heartbeatTimer = setInterval(() => {
+        if (socket && socket.readyState === WebSocket.OPEN) {
+            socket.send(JSON.stringify({
+                type: 'ping',
+                timestamp: Date.now()
+            }));
+        }
+    }, 30000); // Send ping every 30 seconds
+}
+
+/**
+ * Update connection status in UI
+ */
+function updateConnectionStatus(connected) {
+    const statusIndicators = document.querySelectorAll('.connection-status');
+    statusIndicators.forEach(indicator => {
+        indicator.classList.toggle('connected', connected);
+        indicator.classList.toggle('disconnected', !connected);
+        indicator.title = connected ? 'Connected' : 'Disconnected';
+    });
+    
+    // Update user status
+    const userStatus = document.querySelector('.user-status');
+    if (userStatus) {
+        userStatus.textContent = connected ? 'Online' : 'Offline';
+        userStatus.className = `user-status ${connected ? 'online' : 'offline'}`;
+    }
+}
+
+/**
+ * Handle connection message
+ */
+function handleConnectionMessage(message) {
+    console.log('Connection message:', message.message);
+    
+    if (message.status === 'connected') {
+        // Join current chat if any
+        if (activeChat) {
+            socket.send(JSON.stringify({
+                type: 'join_chat',
+                chatId: activeChat.id
+            }));
+        }
+    }
+}
+
+/**
+ * Handle new message
+ */
+function handleNewMessage(message) {
+    const newMessage = message.message;
+    
+    // Only handle if it's not from current user
+    if (newMessage.senderUsername === currentUser?.username) {
+        return;
+    }
+    
+    // Add to current chat if it's the same chat
+    if (activeChat && newMessage.chatId === activeChat.id) {
+        addMessageToUI(newMessage);
+        
+        // Show notification if window is not focused
+        if (document.hidden) {
+            showDesktopNotification(
+                `New message from ${newMessage.senderUsername}`,
+                newMessage.messageContent
+            );
+        }
+        
+        // Play notification sound
+        playNotificationSound();
+    }
+    
+    // Update chat in sidebar
+    updateChatInSidebar(newMessage.chatId, newMessage.messageContent);
+    
+    // Update unread count
+    incrementUnreadCount(newMessage.chatId);
+}
+
+/**
+ * Handle message sent confirmation
+ */
+function handleMessageSent(message) {
+    console.log('Message sent confirmation:', message);
+    
+    // Update message status in UI
+    const sentMessage = message.message;
+    const messageElement = document.querySelector(`[data-message-id="${sentMessage.id}"]`);
+    
+    if (messageElement) {
+        const statusIndicator = messageElement.querySelector('.sent-indicator');
+        if (statusIndicator) {
+            statusIndicator.classList.add('confirmed');
+        }
+    }
+}
+
+/**
+ * Handle typing indicator
+ */
+function handleTypingIndicator(message) {
+    if (message.username === currentUser?.username) {
+        return; // Ignore own typing
+    }
+    
+    if (activeChat && message.chatId === activeChat.id) {
+        showTypingIndicator(message.username, message.isTyping);
+    }
+}
+
+/**
+ * Show typing indicator
+ */
+function showTypingIndicator(username, isTyping) {
+    const messagesContainer = document.getElementById('messagesContainer');
+    if (!messagesContainer) return;
+    
+    let typingIndicator = document.getElementById('typingIndicator');
+    
+    if (isTyping) {
+        if (!typingIndicator) {
+            typingIndicator = document.createElement('div');
+            typingIndicator.id = 'typingIndicator';
+            typingIndicator.className = 'typing-indicator';
+            typingIndicator.innerHTML = `
+                <div class="typing-avatar">
+                    <img src="/api/user/${encodeURIComponent(username)}/avatar" 
+                         alt="${escapeHtml(username)}" class="avatar-img"
+                         onerror="this.src='/images/default-avatar.png'">
+                </div>
+                <div class="typing-content">
+                    <span class="typing-user">${escapeHtml(username)}</span>
+                    <span class="typing-text">is typing</span>
+                    <div class="typing-dots">
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                    </div>
+                </div>
+            `;
+            
+            messagesContainer.appendChild(typingIndicator);
+            
+            // Scroll to bottom if user was at bottom
+            if (shouldAutoScroll) {
+                setTimeout(scrollToBottom, 100);
+            }
+        }
+        
+        // Auto-hide after 3 seconds
+        clearTimeout(typingIndicator.hideTimer);
+        typingIndicator.hideTimer = setTimeout(() => {
+            if (typingIndicator && typingIndicator.parentNode) {
+                typingIndicator.remove();
+            }
+        }, 3000);
+        
+    } else if (typingIndicator) {
+        typingIndicator.remove();
+    }
+}
+
+/**
+ * Handle user joined
+ */
+function handleUserJoined(message) {
+    console.log(`User ${message.username} joined chat ${message.chatId}`);
+    
+    if (activeChat && message.chatId === activeChat.id) {
+        // Update online status or show notification
+        showNotification(`${message.username} joined the chat`, 'info', 2000);
+    }
+}
+
+/**
+ * Handle user left
+ */
+function handleUserLeft(message) {
+    console.log(`User ${message.username} left chat ${message.chatId}`);
+    
+    if (activeChat && message.chatId === activeChat.id) {
+        // Update online status or show notification
+        showNotification(`${message.username} left the chat`, 'info', 2000);
+    }
+}
+
+/**
+ * Handle chat joined confirmation
+ */
+function handleChatJoined(message) {
+    console.log(`Joined chat ${message.chatId}`);
+}
+
+/**
+ * Handle chat left confirmation
+ */
+function handleChatLeft(message) {
+    console.log(`Left chat ${message.chatId}`);
+}
+
+/**
+ * Handle pong response
+ */
+function handlePong(message) {
+    const latency = Date.now() - message.timestamp;
+    console.log(`WebSocket latency: ${latency}ms`);
+    
+    // Update latency in UI if element exists
+    const latencyElement = document.getElementById('connectionLatency');
+    if (latencyElement) {
+        latencyElement.textContent = `${latency}ms`;
+    }
+}
+
+/**
+ * Show desktop notification
+ */
+function showDesktopNotification(title, body) {
+    if (!('Notification' in window)) {
+        return;
+    }
+    
+    if (Notification.permission === 'granted') {
+        const notification = new Notification(title, {
+            body: body,
+            icon: '/images/logo.png',
+            badge: '/images/logo.png',
+            tag: 'chat-message'
+        });
+        
+        notification.onclick = function() {
+            window.focus();
+            notification.close();
+        };
+        
+        // Auto close after 5 seconds
+        setTimeout(() => notification.close(), 5000);
+        
+    } else if (Notification.permission !== 'denied') {
+        Notification.requestPermission().then(permission => {
+            if (permission === 'granted') {
+                showDesktopNotification(title, body);
+            }
+        });
+    }
+}
+
+/**
+ * Play notification sound
+ */
+function playNotificationSound() {
+    try {
+        const audio = new Audio('/sounds/notification.mp3');
+        audio.volume = 0.3;
+        audio.play().catch(error => {
+            console.log('Could not play notification sound:', error);
+        });
+    } catch (error) {
+        console.log('Notification sound not available:', error);
+    }
+}
+
+/**
+ * Increment unread count
+ */
+function incrementUnreadCount(chatId) {
+    const chatItem = document.querySelector(`[data-chat-id="${chatId}"]`);
+    if (!chatItem) return;
+    
+    let unreadCountElement = chatItem.querySelector('.unread-count');
+    
+    if (unreadCountElement) {
+        const currentCount = parseInt(unreadCountElement.textContent) || 0;
+        unreadCountElement.textContent = currentCount + 1;
+    } else {
+        // Create unread indicator
+        const indicators = chatItem.querySelector('.chat-indicators');
+        if (indicators) {
+            indicators.insertAdjacentHTML('beforeend', '<span class="unread-count">1</span>');
+        }
+        
+        // Add unread indicator dot
+        const avatar = chatItem.querySelector('.chat-avatar');
+        if (avatar && !avatar.querySelector('.unread-indicator')) {
+            avatar.insertAdjacentHTML('beforeend', '<div class="unread-indicator"></div>');
+        }
+    }
+}
+
+/**
+ * Send message via WebSocket
+ */
+function sendWebSocketMessage(type, data) {
+    if (socket && socket.readyState === WebSocket.OPEN) {
+        socket.send(JSON.stringify({ type, ...data }));
+        return true;
+    } else {
+        console.warn('WebSocket not connected, cannot send message');
+        return false;
+    }
+}
+
+/**
+ * Close WebSocket connection
+ */
+function closeWebSocket() {
+    if (socket) {
+        socket.close(1000, 'User logout');
+        socket = null;
+        isConnected = false;
+    }
+    
+    if (heartbeatTimer) {
+        clearInterval(heartbeatTimer);
+        heartbeatTimer = null;
+    }
+    
+    if (reconnectTimer) {
+        clearTimeout(reconnectTimer);
+        reconnectTimer = null;
+    }
+}
+
+/**
+ * Get WebSocket connection status
+ */
+function getWebSocketStatus() {
+    return {
+        connected: isConnected,
+        readyState: socket ? socket.readyState : WebSocket.CLOSED,
+        reconnectAttempts: reconnectAttempts
+    };
+}
+
+// Export WebSocket functions
+window.ChatApp = {
+    ...window.ChatApp,
+    initializeWebSocket,
+    closeWebSocket,
+    sendWebSocketMessage,
+    getWebSocketStatus
+};
+
+console.log('WebSocket module loaded successfully');
+"""
+        },
+
+        {
+            "path": "src\\main\\resources\\static\\js\\search.js",
+            "content": """// Search functionality
+console.log('Search module loaded');
+
+// Search-related variables
+let searchTimeout = null;
+let searchHistory = [];
+let currentSearchResults = [];
+let searchSuggestions = [];
+
+/**
+ * Perform search
+ */
+async function performSearch(query, type = 'all') {
+    if (!query || query.trim().length < 2) {
+        clearSearchResults();
+        return;
+    }
+    
+    try {
+        showSearchLoading();
+        
+        let endpoint = '';
+        let params = new URLSearchParams({ q: query.trim() });
+        
+        switch (type) {
+            case 'messages':
+                endpoint = '/api/search/messages';
+                break;
+            case 'users':
+                endpoint = '/api/search/users';
+                break;
+            case 'chats':
+                endpoint = '/api/search/chats';
+                break;
+            default:
+                endpoint = '/api/search/messages';
+        }
+        
+        const response = await fetch(`${CONFIG.API_BASE_URL}${endpoint}?${params}`);
+        const data = await response.json();
+        
+        if (response.ok) {
+            currentSearchResults = data;
+            displaySearchResults(data, type);
+            addToSearchHistory(query, type);
+        } else {
+            throw new Error(data.error || 'Search failed');
+        }
+        
+    } catch (error) {
+        console.error('Search error:', error);
+        showSearchError('Search failed. Please try again.');
+    }
+}
+
+/**
+ * Perform advanced search with filters
+ */
+async function performAdvancedSearch(filters) {
+    try {
+        showSearchLoading();
+        
+        const response = await fetch(`${CONFIG.API_BASE_URL}/api/search/advanced`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(filters)
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            currentSearchResults = data;
+            displaySearchResults(data, 'advanced');
+        } else {
+            throw new Error(data.error || 'Advanced search failed');
+        }
+        
+    } catch (error) {
+        console.error('Advanced search error:', error);
+        showSearchError('Advanced search failed. Please try again.');
+    }
+}
+
+/**
+ * Get search suggestions
+ */
+async function getSearchSuggestions(query, type = 'all') {
+    if (!query || query.length < 2) {
+        hideSearchSuggestions();
+        return;
+    }
+    
+    try {
+        const params = new URLSearchParams({ q: query, type: type });
+        const response = await fetch(`${CONFIG.API_BASE_URL}/api/search/suggestions?${params}`);
+        const data = await response.json();
+        
+        if (response.ok) {
+            searchSuggestions = data.suggestions || [];
+            displaySearchSuggestions(searchSuggestions);
+        }
+        
+    } catch (error) {
+        console.error('Error getting search suggestions:', error);
+    }
+}
+
+/**
+ * Display search results
+ */
+function displaySearchResults(results, searchType) {
+    const resultsContainer = document.getElementById('searchResults');
+    const resultsContent = document.getElementById('searchResultsContent');
+    
+    if (!resultsContainer || !resultsContent) {
+        console.warn('Search results container not found');
+        return;
+    }
+    
+    resultsContainer.classList.remove('hidden');
+    
+    if (!results || (!results.messages && !results.users && !results.chats)) {
+        resultsContent.innerHTML = `
+            <div class="no-results">
+                <h4>No results found</h4>
+                <p>Try adjusting your search query or filters.</p>
+            </div>
+        `;
+        return;
+    }
+    
+    let html = '';
+    
+    // Display messages
+    if (results.messages && results.messages.length > 0) {
+        html += `<div class="search-section">
+            <h4>Messages (${results.messages.length})</h4>
+            <div class="search-results-list">
+                ${results.messages.map(message => createMessageResultHtml(message)).join('')}
+            </div>
+        </div>`;
+    }
+    
+    // Display users
+    if (results.users && results.users.length > 0) {
+        html += `<div class="search-section">
+            <h4>Users (${results.users.length})</h4>
+            <div class="search-results-list">
+                ${results.users.map(user => createUserResultHtml(user)).join('')}
+            </div>
+        </div>`;
+    }
+    
+    // Display chats
+    if (results.chats && results.chats.length > 0) {
+        html += `<div class="search-section">
+            <h4>Chats (${results.chats.length})</h4>
+            <div class="search-results-list">
+                ${results.chats.map(chat => createChatResultHtml(chat)).join('')}
+            </div>
+        </div>`;
+    }
+    
+    resultsContent.innerHTML = html;
+    
+    // Setup result interactions
+    setupSearchResultInteractions();
+}
+
+/**
+ * Create message result HTML
+ */
+function createMessageResultHtml(message) {
+    const preview = message.messageContent.length > 100 ? 
+        message.messageContent.substring(0, 100) + '...' : message.messageContent;
+    
+    return `
+        <div class="search-result-item message-result" data-message-id="${message.id}" data-chat-id="${message.chatId}">
+            <div class="result-icon">📝</div>
+            <div class="result-content">
+                <div class="result-title">Message from ${escapeHtml(message.senderUsername)}</div>
+                <div class="result-preview">${escapeHtml(preview)}</div>
+                <div class="result-meta">
+                    <span>${formatDate(message.createdAt)}</span>
+                    ${message.chatId ? `• <span onclick="openChatFromSearch(${message.chatId})">Open Chat</span>` : ''}
+                </div>
+            </div>
+            <div class="result-actions">
+                <button onclick="openChatFromSearch(${message.chatId}, ${message.id})" class="btn btn-small btn-primary">
+                    View
+                </button>
+            </div>
+        </div>
+    `;
+}
+
+/**
+ * Create user result HTML
+ */
+function createUserResultHtml(user) {
+    return `
+        <div class="search-result-item user-result" data-username="${user.username}">
+            <div class="result-avatar">
+                <img src="/api/user/${encodeURIComponent(user.username)}/avatar" 
+                     alt="${escapeHtml(user.username)}" class="avatar-img"
+                     onerror="this.src='/images/default-avatar.png'">
+            </div>
+            <div class="result-content">
+                <div class="result-title">${escapeHtml(user.displayName || user.username)}</div>
+                <div class="result-subtitle">@${escapeHtml(user.username)}</div>
+                <div class="result-meta">
+                    <span class="${user.isOnline ? 'online-status' : 'offline-status'}">
+                        ${user.isOnline ? 'Online' : 'Offline'}
+                    </span>
+                </div>
+            </div>
+            <div class="result-actions">
+                <button onclick="startChatFromSearch('${escapeHtml(user.username)}')" class="btn btn-small btn-primary">
+                    Chat
+                </button>
+            </div>
+        </div>
+    `;
+}
+
+/**
+ * Create chat result HTML
+ */
+function createChatResultHtml(chat) {
+    return `
+        <div class="search-result-item chat-result" data-chat-id="${chat.id}">
+            <div class="result-icon">💬</div>
+            <div class="result-content">
+                <div class="result-title">Chat with ${escapeHtml(chat.otherUsername)}</div>
+                <div class="result-preview">${escapeHtml(chat.lastMessage || 'No messages yet')}</div>
+                <div class="result-meta">
+                    <span>${chat.messageCount || 0} messages</span>
+                    ${chat.lastMessageTimestamp ? ` • <span>${formatDate(chat.lastMessageTimestamp)}</span>` : ''}
+                </div>
+            </div>
+            <div class="result-actions">
+                <button onclick="openChatFromSearch(${chat.id})" class="btn btn-small btn-primary">
+                    Open
+                </button>
+            </div>
+        </div>
+    `;
+}
+
+/**
+ * Display search suggestions
+ */
+function displaySearchSuggestions(suggestions) {
+    const suggestionsContainer = document.getElementById('searchSuggestions');
+    
+    if (!suggestionsContainer) return;
+    
+    if (!suggestions || suggestions.length === 0) {
+        hideSearchSuggestions();
+        return;
+    }
+    
+    const html = suggestions.map(suggestion => `
+        <div class="search-suggestion" onclick="selectSearchSuggestion('${escapeHtml(suggestion)}')">
+            <span class="suggestion-text">${escapeHtml(suggestion)}</span>
+            <span class="suggestion-icon">🔍</span>
+        </div>
+    `).join('');
+    
+    suggestionsContainer.innerHTML = html;
+    suggestionsContainer.classList.remove('hidden');
+}
+
+/**
+ * Hide search suggestions
+ */
+function hideSearchSuggestions() {
+    const suggestionsContainer = document.getElementById('searchSuggestions');
+    if (suggestionsContainer) {
+        suggestionsContainer.classList.add('hidden');
+    }
+}
+
+/**
+ * Select search suggestion
+ */
+function selectSearchSuggestion(suggestion) {
+    const searchInput = document.getElementById('mainSearchInput');
+    if (searchInput) {
+        searchInput.value = suggestion;
+        performSearch(suggestion);
+    }
+    
+    hideSearchSuggestions();
+}
+
+/**
+ * Clear search results
+ */
+function clearSearchResults() {
+    const resultsContainer = document.getElementById('searchResults');
+    const resultsContent = document.getElementById('searchResultsContent');
+    
+    if (resultsContainer) {
+        resultsContainer.classList.add('hidden');
+    }
+    
+    if (resultsContent) {
+        resultsContent.innerHTML = '';
+    }
+    
+    hideSearchSuggestions();
+    currentSearchResults = [];
+}
+
+/**
+ * Close search results
+ */
+function closeSearchResults() {
+    clearSearchResults();
+    
+    const searchInput = document.getElementById('mainSearchInput');
+    if (searchInput) {
+        searchInput.value = '';
+        searchInput.blur();
+    }
+}
+
+/**
+ * Show search loading
+ */
+function showSearchLoading() {
+    const resultsContainer = document.getElementById('searchResults');
+    const resultsContent = document.getElementById('searchResultsContent');
+    
+    if (resultsContainer) {
+        resultsContainer.classList.remove('hidden');
+    }
+    
+    if (resultsContent) {
+        resultsContent.innerHTML = `
+            <div class="loading">
+                <div class="spinner"></div>
+                <span>Searching...</span>
+            </div>
+        `;
+    }
+}
+
+/**
+ * Show search error
+ */
+function showSearchError(message) {
+    const resultsContent = document.getElementById('searchResultsContent');
+    
+    if (resultsContent) {
+        resultsContent.innerHTML = `
+            <div class="error-message">
+                <h4>Search Failed</h4>
+                <p>${escapeHtml(message)}</p>
+                <button onclick="closeSearchResults()" class="btn btn-primary">Close</button>
+            </div>
+        `;
+    }
+}
+
+/**
+ * Setup search result interactions
+ */
+function setupSearchResultInteractions() {
+    // Add click handlers for search results
+    document.querySelectorAll('.search-result-item').forEach(item => {
+        item.addEventListener('click', function(e) {
+            if (e.target.closest('.result-actions')) {
+                return; // Don't handle click if it's on action buttons
+            }
+            
+            // Handle different result types
+            if (this.classList.contains('message-result')) {
+                const chatId = parseInt(this.dataset.chatId);
+                const messageId = parseInt(this.dataset.messageId);
+                openChatFromSearch(chatId, messageId);
+            } else if (this.classList.contains('user-result')) {
+                const username = this.dataset.username;
+                startChatFromSearch(username);
+            } else if (this.classList.contains('chat-result')) {
+                const chatId = parseInt(this.dataset.chatId);
+                openChatFromSearch(chatId);
+            }
+        });
+    });
+}
+
+/**
+ * Open chat from search results
+ */
+function openChatFromSearch(chatId, messageId = null) {
+    closeSearchResults();
+    
+    // Open the chat
+    openChat(chatId);
+    
+    // If messageId provided, scroll to that message
+    if (messageId) {
+        setTimeout(() => {
+            const messageElement = document.querySelector(`[data-message-id="${messageId}"]`);
+            if (messageElement) {
+                messageElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                messageElement.classList.add('highlighted');
+                
+                // Remove highlight after 3 seconds
+                setTimeout(() => {
+                    messageElement.classList.remove('highlighted');
+                }, 3000);
+            }
+        }, 1000);
+    }
+}
+
+/**
+ * Start chat from search results
+ */
+async function startChatFromSearch(username) {
+    try {
+        closeSearchResults();
+        
+        const response = await fetch(`${CONFIG.API_BASE_URL}/chat/start`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ otherUsername: username })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            // Refresh chat list and open new chat
+            await loadUserChats();
+            openChat(data.chat.id);
+            showNotification(`Started chat with ${username}`, 'success');
+        } else {
+            throw new Error(data.error || 'Failed to start chat');
+        }
+        
+    } catch (error) {
+        console.error('Error starting chat:', error);
+        showNotification('Failed to start chat', 'error');
+    }
+}
+
+/**
+ * Add query to search history
+ */
+function addToSearchHistory(query, type) {
+    const historyItem = {
+        query: query,
+        type: type,
+        timestamp: Date.now()
+    };
+    
+    // Remove duplicate if exists
+    searchHistory = searchHistory.filter(item => 
+        !(item.query === query && item.type === type)
+    );
+    
+    // Add to beginning
+    searchHistory.unshift(historyItem);
+    
+    // Keep only last 50 searches
+    if (searchHistory.length > 50) {
+        searchHistory = searchHistory.slice(0, 50);
+    }
+    
+    // Save to localStorage
+    try {
+        localStorage.setItem('searchHistory', JSON.stringify(searchHistory));
+    } catch (error) {
+        console.warn('Failed to save search history:', error);
+    }
+}
+
+/**
+ * Load search history
+ */
+function loadSearchHistory() {
+    try {
+        const saved = localStorage.getItem('searchHistory');
+        if (saved) {
+            searchHistory = JSON.parse(saved);
+        }
+    } catch (error) {
+        console.warn('Failed to load search history:', error);
+        searchHistory = [];
+    }
+}
+
+/**
+ * Get search history
+ */
+function getSearchHistory(limit = 10) {
+    return searchHistory.slice(0, limit);
+}
+
+/**
+ * Clear search history
+ */
+function clearSearchHistory() {
+    searchHistory = [];
+    try {
+        localStorage.removeItem('searchHistory');
+    } catch (error) {
+        console.warn('Failed to clear search history:', error);
+    }
+}
+
+/**
+ * Filter chats in sidebar
+ */
+function filterChats() {
+    const searchInput = document.getElementById('chatSearch');
+    if (!searchInput) return;
+    
+    const query = searchInput.value.toLowerCase().trim();
+    const chatItems = document.querySelectorAll('.chat-item');
+    
+    chatItems.forEach(item => {
+        const username = item.querySelector('.chat-username').textContent.toLowerCase();
+        const lastMessage = item.querySelector('.last-message').textContent.toLowerCase();
+        
+        const matches = username.includes(query) || lastMessage.includes(query);
+        item.style.display = matches ? 'flex' : 'none';
+    });
+}
+
+/**
+ * Search chats in sidebar
+ */
+function searchChats() {
+    const searchInput = document.getElementById('chatSearch');
+    if (!searchInput) return;
+    
+    const query = searchInput.value.trim();
+    if (query) {
+        performSearch(query, 'chats');
+    }
+}
+
+// Initialize search functionality
+document.addEventListener('DOMContentLoaded', function() {
+    loadSearchHistory();
+    
+    // Setup search input with debounced suggestions
+    const searchInput = document.getElementById('mainSearchInput');
+    if (searchInput) {
+        searchInput.addEventListener('input', debounce(function(e) {
+            const query = e.target.value.trim();
+            if (query.length >= 2) {
+                getSearchSuggestions(query);
+            } else {
+                hideSearchSuggestions();
+            }
+        }, 300));
+        
+        // Hide suggestions when input loses focus
+        searchInput.addEventListener('blur', function() {
+            setTimeout(hideSearchSuggestions, 200); // Delay to allow clicking suggestions
+        });
+    }
+    
+    // Setup chat search
+    const chatSearchInput = document.getElementById('chatSearch');
+    if (chatSearchInput) {
+        chatSearchInput.addEventListener('input', debounce(filterChats, 300));
+    }
+});
+
+// Export search functions
+window.ChatApp = {
+    ...window.ChatApp,
+    performSearch,
+    performAdvancedSearch,
+    clearSearchResults,
+    closeSearchResults,
+    filterChats,
+    searchChats,
+    getSearchHistory,
+    clearSearchHistory
+};
+
+console.log('Search module loaded successfully');
+"""
+        },
+
+        {
+            "path": "src\\main\\resources\\static\\js\\utils.js",
+            "content": """// Utility functions
+console.log('Utils module loaded');
+
+/**
+ * Modal Management
+ */
+const ModalManager = {
+    /**
+     * Show modal
+     */
+    show(modalId, size = 'medium') {
+        const modal = document.getElementById(modalId);
+        if (!modal) {
+            console.error('Modal not found:', modalId);
+            return;
+        }
+        
+        // Create overlay
+        const overlay = document.createElement('div');
+        overlay.className = 'modal-overlay';
+        overlay.innerHTML = `<div class="modal modal-${size}" id="${modalId}Content"></div>`;
+        
+        // Move modal content
+        const modalContent = modal.innerHTML;
+        overlay.querySelector('.modal').innerHTML = modalContent;
+        
+        // Add to body
+        document.body.appendChild(overlay);
+        
+        // Show with animation
+        setTimeout(() => overlay.classList.add('show'), 10);
+        
+        // Setup close handlers
+        this.setupCloseHandlers(overlay);
+        
+        return overlay;
+    },
+    
+    /**
+     * Hide modal
+     */
+    hide(modal) {
+        if (typeof modal === 'string') {
+            modal = document.querySelector(`[id*="${modal}"]`);
+        }
+        
+        const overlay = modal?.closest('.modal-overlay');
+        if (overlay) {
+            overlay.classList.remove('show');
+            setTimeout(() => overlay.remove(), 300);
+        }
+    },
+    
+    /**
+     * Setup close handlers
+     */
+    setupCloseHandlers(overlay) {
+        // Close on overlay click
+        overlay.addEventListener('click', (e) => {
+            if (e.target === overlay) {
+                this.hide(overlay.querySelector('.modal'));
+            }
+        });
+        
+        // Close on close button click
+        const closeBtn = overlay.querySelector('.modal-close, .close-btn');
+        if (closeBtn) {
+            closeBtn.addEventListener('click', () => {
+                this.hide(overlay.querySelector('.modal'));
+            });
+        }
+        
+        // Close on escape key
+        const escapeHandler = (e) => {
+            if (e.key === 'Escape') {
+                this.hide(overlay.querySelector('.modal'));
+                document.removeEventListener('keydown', escapeHandler);
+            }
+        };
+        document.addEventListener('keydown', escapeHandler);
+    }
+};
+
+/**
+ * Show new chat modal
+ */
+function showNewChatModal() {
+    const modalHtml = `
+        <div class="modal-header">
+            <h3 class="modal-title">Start New Chat</h3>
+            <button class="modal-close">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="user-search-container">
+                <input type="text" id="newChatUserSearch" class="user-search-input" 
+                       placeholder="Search for users..." autocomplete="off">
+                <div id="newChatUserSuggestions" class="user-suggestions hidden"></div>
+            </div>
+            <div id="newChatSelectedUser" class="selected-user hidden">
+                <div class="selected-user-info">
+                    <img class="avatar-img" src="" alt="">
+                    <div class="user-details">
+                        <h5 class="user-name"></h5>
+                        <p class="user-username"></p>
+                    </div>
+                </div>
+                <button onclick="clearSelectedUser()" class="btn btn-secondary">Change</button>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button onclick="ModalManager.hide(this.closest('.modal'))" class="btn btn-secondary">Cancel</button>
+            <button id="startChatBtn" onclick="startNewChat()" class="btn btn-primary" disabled>Start Chat</button>
+        </div>
+    `;
+    
+    const modal = document.createElement('div');
+    modal.id = 'newChatModal';
+    modal.innerHTML = modalHtml;
+    
+    const overlay = ModalManager.show('newChatModal');
+    overlay.querySelector('.modal').innerHTML = modalHtml;
+    
+    // Setup user search
+    setupNewChatUserSearch();
+}
+
+/**
+ * Setup user search for new chat
+ */
+function setupNewChatUserSearch() {
+    const searchInput = document.getElementById('newChatUserSearch');
+    const suggestionsContainer = document.getElementById('newChatUserSuggestions');
+    
+    if (!searchInput || !suggestionsContainer) return;
+    
+    searchInput.addEventListener('input', debounce(async function(e) {
+        const query = e.target.value.trim();
+        
+        if (query.length < 2) {
+            suggestionsContainer.classList.add('hidden');
+            return;
+        }
+        
+        try {
+            const response = await fetch(\`\${CONFIG.API_BASE_URL}/search/users?q=\${encodeURIComponent(query)}\`);
+            const data = await response.json();
+            
+            if (response.ok && data.users) {
+                displayUserSuggestions(data.users);
+            }
+        } catch (error) {
+            console.error('Error searching users:', error);
+        }
+    }, 300));
+    
+    // Hide suggestions when clicking outside
+    document.addEventListener('click', function(e) {
+        if (!e.target.closest('.user-search-container')) {
+            suggestionsContainer.classList.add('hidden');
+        }
+    });
+}
+
+/**
+ * Display user suggestions
+ */
+function displayUserSuggestions(users) {
+    const suggestionsContainer = document.getElementById('newChatUserSuggestions');
+    if (!suggestionsContainer || !users || users.length === 0) {
+        suggestionsContainer.classList.add('hidden');
+        return;
+    }
+    
+    const html = users.map(user => \`
+        <div class="user-suggestion" onclick="selectUser('\${escapeHtml(user.username)}', '\${escapeHtml(user.displayName || user.username)}')">
+            <img src="/api/user/\${encodeURIComponent(user.username)}/avatar" 
+                 alt="\${escapeHtml(user.username)}" class="avatar-img"
+                 onerror="this.src='/images/default-avatar.png'">
+            <div class="user-suggestion-info">
+                <h5>\${escapeHtml(user.displayName || user.username)}</h5>
+                <p>@\${escapeHtml(user.username)}</p>
+            </div>
+        </div>
+    \`).join('');
+    
+    suggestionsContainer.innerHTML = html;
+    suggestionsContainer.classList.remove('hidden');
+}
+
+/**
+ * Select user for new chat
+ */
+function selectUser(username, displayName) {
+    const searchInput = document.getElementById('newChatUserSearch');
+    const suggestionsContainer = document.getElementById('newChatUserSuggestions');
+    const selectedUserContainer = document.getElementById('newChatSelectedUser');
+    const startChatBtn = document.getElementById('startChatBtn');
+    
+    if (searchInput) searchInput.style.display = 'none';
+    if (suggestionsContainer) suggestionsContainer.classList.add('hidden');
+    
+    if (selectedUserContainer) {
+        selectedUserContainer.classList.remove('hidden');
+        selectedUserContainer.querySelector('.user-name').textContent = displayName;
+        selectedUserContainer.querySelector('.user-username').textContent = '@' + username;
+        selectedUserContainer.querySelector('.avatar-img').src = \`/api/user/\${encodeURIComponent(username)}/avatar\`;
+        selectedUserContainer.dataset.username = username;
+    }
+    
+    if (startChatBtn) {
+        startChatBtn.disabled = false;
+    }
+}
+
+/**
+ * Clear selected user
+ */
+function clearSelectedUser() {
+    const searchInput = document.getElementById('newChatUserSearch');
+    const selectedUserContainer = document.getElementById('newChatSelectedUser');
+    const startChatBtn = document.getElementById('startChatBtn');
+    
+    if (searchInput) {
+        searchInput.style.display = 'block';
+        searchInput.value = '';
+        searchInput.focus();
+    }
+    
+    if (selectedUserContainer) {
+        selectedUserContainer.classList.add('hidden');
+    }
+    
+    if (startChatBtn) {
+        startChatBtn.disabled = true;
+    }
+}
+
+/**
+ * Start new chat
+ */
+async function startNewChat() {
+    const selectedUserContainer = document.getElementById('newChatSelectedUser');
+    const username = selectedUserContainer?.dataset.username;
+    
+    if (!username) {
+        showNotification('Please select a user', 'error');
+        return;
+    }
+    
+    try {
+        const response = await fetch(\`\${CONFIG.API_BASE_URL}/chat/start\`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ otherUsername: username })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            // Close modal
+            ModalManager.hide(document.querySelector('#newChatModal .modal'));
+            
+            // Refresh chat list and open new chat
+            await loadUserChats();
+            openChat(data.chat.id);
+            showNotification(\`Started chat with \${username}\`, 'success');
+        } else {
+            throw new Error(data.error || 'Failed to start chat');
+        }
+        
+    } catch (error) {
+        console.error('Error starting chat:', error);
+        showNotification('Failed to start chat', 'error');
+    }
+}
+
+/**
+ * Show settings modal
+ */
+function showSettingsModal() {
+    const modalHtml = \`
+        <div class="modal-header">
+            <h3 class="modal-title">Settings</h3>
+            <button class="modal-close">&times;</button>
+        </div>
+        <div class="modal-body settings-modal">
+            <div class="settings-nav">
+                <div class="settings-nav-item active" onclick="showSettingsTab('general')">General</div>
+                <div class="settings-nav-item" onclick="showSettingsTab('notifications')">Notifications</div>
+                <div class="settings-nav-item" onclick="showSettingsTab('privacy')">Privacy</div>
+                <div class="settings-nav-item" onclick="showSettingsTab('about')">About</div>
+            </div>
+            <div class="settings-content">
+                <div id="generalSettings" class="settings-section">
+                    <h4>General Settings</h4>
+                    <div class="setting-item">
+                        <div class="setting-label">
+                            <h5>Theme</h5>
+                            <p>Choose your preferred theme</p>
+                        </div>
+                        <div class="setting-control">
+                            <select id="themeSelect" class="setting-select">
+                                <option value="light">Light</option>
+                                <option value="dark">Dark</option>
+                                <option value="auto">Auto</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="setting-item">
+                        <div class="setting-label">
+                            <h5>Auto-scroll</h5>
+                            <p>Automatically scroll to new messages</p>
+                        </div>
+                        <div class="setting-control">
+                            <div class="toggle-switch active" onclick="toggleSetting(this, 'autoScroll')"></div>
+                        </div>
+                    </div>
+                    <div class="setting-item">
+                        <div class="setting-label">
+                            <h5>Show typing indicators</h5>
+                            <p>Show when others are typing</p>
+                        </div>
+                        <div class="setting-control">
+                            <div class="toggle-switch active" onclick="toggleSetting(this, 'showTyping')"></div>
+                        </div>
+                    </div>
+                </div>
+                <div id="notificationSettings" class="settings-section hidden">
+                    <h4>Notification Settings</h4>
+                    <div class="setting-item">
+                        <div class="setting-label">
+                            <h5>Desktop notifications</h5>
+                            <p>Show desktop notifications for new messages</p>
+                        </div>
+                        <div class="setting-control">
+                            <div class="toggle-switch active" onclick="toggleSetting(this, 'desktopNotifications')"></div>
+                        </div>
+                    </div>
+                    <div class="setting-item">
+                        <div class="setting-label">
+                            <h5>Sound notifications</h5>
+                            <p>Play sound for new messages</p>
+                        </div>
+                        <div class="setting-control">
+                            <div class="toggle-switch active" onclick="toggleSetting(this, 'soundNotifications')"></div>
+                        </div>
+                    </div>
+                </div>
+                <div id="privacySettings" class="settings-section hidden">
+                    <h4>Privacy Settings</h4>
+                    <div class="setting-item">
+                        <div class="setting-label">
+                            <h5>Hide images by default</h5>
+                            <p>Hide image messages until clicked</p>
+                        </div>
+                        <div class="setting-control">
+                            <div class="toggle-switch" onclick="toggleSetting(this, 'hideImages')"></div>
+                        </div>
+                    </div>
+                    <div class="setting-item">
+                        <div class="setting-label">
+                            <h5>Read receipts</h5>
+                            <p>Send read receipts to others</p>
+                        </div>
+                        <div class="setting-control">
+                            <div class="toggle-switch active" onclick="toggleSetting(this, 'readReceipts')"></div>
+                        </div>
+                    </div>
+                </div>
+                <div id="aboutSettings" class="settings-section hidden">
+                    <h4>About</h4>
+                    <div class="about-info">
+                        <h5>Reddit Chat Manager</h5>
+                        <p>Version 1.0.0</p>
+                        <p>A local chat application for managing conversations.</p>
+                        <div class="about-links">
+                            <button onclick="showKeyboardShortcuts()" class="btn btn-secondary">Keyboard Shortcuts</button>
+                            <button onclick="exportData()" class="btn btn-secondary">Export Data</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button onclick="ModalManager.hide(this.closest('.modal'))" class="btn btn-primary">Close</button>
+        </div>
+    \`;
+    
+    const modal = document.createElement('div');
+    modal.id = 'settingsModal';
+    modal.innerHTML = modalHtml;
+    
+    const overlay = ModalManager.show('settingsModal', 'large');
+    overlay.querySelector('.modal').innerHTML = modalHtml;
+    
+    // Load current settings
+    loadCurrentSettings();
+}
+
+/**
+ * Show settings tab
+ */
+function showSettingsTab(tabName) {
+    // Update nav
+    document.querySelectorAll('.settings-nav-item').forEach(item => {
+        item.classList.remove('active');
+    });
+    event.target.classList.add('active');
+    
+    // Show content
+    document.querySelectorAll('.settings-section').forEach(section => {
+        section.classList.add('hidden');
+    });
+    document.getElementById(tabName + 'Settings').classList.remove('hidden');
+}
+
+/**
+ * Toggle setting
+ */
+function toggleSetting(element, settingName) {
+    element.classList.toggle('active');
+    const isActive = element.classList.contains('active');
+    
+    // Save setting
+    try {
+        const settings = JSON.parse(localStorage.getItem('chatSettings') || '{}');
+        settings[settingName] = isActive;
+        localStorage.setItem('chatSettings', JSON.stringify(settings));
+        
+        // Apply setting immediately
+        applySetting(settingName, isActive);
+        
+    } catch (error) {
+        console.error('Error saving setting:', error);
+    }
+}
+
+/**
+ * Apply setting
+ */
+function applySetting(settingName, value) {
+    switch (settingName) {
+        case 'autoScroll':
+            shouldAutoScroll = value;
+            break;
+        case 'hideImages':
+            // Apply to existing images
+            document.querySelectorAll('.message-image').forEach(img => {
+                img.style.display = value ? 'none' : 'block';
+            });
+            break;
+        case 'desktopNotifications':
+            if (value && Notification.permission === 'default') {
+                Notification.requestPermission();
+            }
+            break;
+    }
+}
+
+/**
+ * Load current settings
+ */
+function loadCurrentSettings() {
+    try {
+        const settings = JSON.parse(localStorage.getItem('chatSettings') || '{}');
+        
+        Object.keys(settings).forEach(settingName => {
+            const toggle = document.querySelector(\`[onclick*="\${settingName}"]\`);
+            if (toggle) {
+                toggle.classList.toggle('active', settings[settingName]);
+            }
+            
+            applySetting(settingName, settings[settingName]);
+        });
+        
+    } catch (error) {
+        console.error('Error loading settings:', error);
+    }
+}
+
+/**
+ * Bulk operations
+ */
+function toggleBulkMode() {
+    bulkModeActive = !bulkModeActive;
+    
+    const bulkSelectBtn = document.getElementById('bulkSelectBtn');
+    const bulkActions = document.getElementById('bulkActions');
+    
+    if (bulkSelectBtn) {
+        bulkSelectBtn.classList.toggle('active', bulkModeActive);
+        bulkSelectBtn.textContent = bulkModeActive ? 'Cancel' : 'Select';
+    }
+    
+    if (bulkActions) {
+        bulkActions.classList.toggle('hidden', !bulkModeActive);
+    }
+    
+    // Show/hide checkboxes
+    document.body.classList.toggle('bulk-mode', bulkModeActive);
+    
+    if (!bulkModeActive) {
+        // Clear all selections
+        document.querySelectorAll('.chat-select-checkbox').forEach(checkbox => {
+            checkbox.checked = false;
+        });
+    }
+}
+
+/**
+ * Handle chat selection
+ */
+function handleChatSelection(chatId, isSelected) {
+    const chatItem = document.querySelector(\`[data-chat-id="\${chatId}"]\`);
+    if (chatItem) {
+        chatItem.classList.toggle('selected', isSelected);
+    }
+    
+    updateBulkActionButtons();
+}
+
+/**
+ * Update bulk action buttons
+ */
+function updateBulkActionButtons() {
+    const selectedCount = document.querySelectorAll('.chat-select-checkbox:checked').length;
+    const bulkActions = document.querySelectorAll('.bulk-actions button');
+    
+    bulkActions.forEach(btn => {
+        if (!btn.onclick.toString().includes('cancelBulkMode')) {
+            btn.disabled = selectedCount === 0;
+        }
+    });
+}
+
+/**
+ * Get selected chat IDs
+ */
+function getSelectedChatIds() {
+    return Array.from(document.querySelectorAll('.chat-select-checkbox:checked'))
+        .map(checkbox => parseInt(checkbox.id.replace('chat-', '')));
+}
+
+/**
+ * Bulk delete chats
+ */
+async function bulkDeleteChats() {
+    const selectedIds = getSelectedChatIds();
+    
+    if (selectedIds.length === 0) {
+        showNotification('No chats selected', 'warning');
+        return;
+    }
+    
+    if (!confirm(\`Delete \${selectedIds.length} chat(s)? This action cannot be undone.\`)) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(\`\${CONFIG.API_BASE_URL}/chat/bulk-action\`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                actionType: 'DELETE_CHATS',
+                chatIds: selectedIds
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            showNotification(\`Deleted \${data.processedCount} chat(s)\`, 'success');
+            toggleBulkMode(); // Exit bulk mode
+            loadUserChats(); // Refresh chat list
+        } else {
+            throw new Error(data.error || 'Failed to delete chats');
+        }
+        
+    } catch (error) {
+        console.error('Error deleting chats:', error);
+        showNotification('Failed to delete chats', 'error');
+    }
+}
+
+/**
+ * Bulk pin chats
+ */
+async function bulkPinChats() {
+    const selectedIds = getSelectedChatIds();
+    
+    if (selectedIds.length === 0) {
+        showNotification('No chats selected', 'warning');
+        return;
+    }
+    
+    try {
+        const response = await fetch(\`\${CONFIG.API_BASE_URL}/chat/bulk-action\`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                actionType: 'PIN_CHATS',
+                chatIds: selectedIds
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            showNotification(\`Pinned \${data.processedCount} chat(s)\`, 'success');
+            toggleBulkMode(); // Exit bulk mode
+            loadUserChats(); // Refresh chat list
+        } else {
+            throw new Error(data.error || 'Failed to pin chats');
+        }
+        
+    } catch (error) {
+        console.error('Error pinning chats:', error);
+        showNotification('Failed to pin chats', 'error');
+    }
+}
+
+/**
+ * Show image in viewer
+ */
+function showImage(button, imageUrl) {
+    const hiddenContainer = button.closest('.image-hidden');
+    const messageContainer = button.closest('.image-message');
+    
+    hiddenContainer.style.display = 'none';
+    
+    const visibleContainer = document.createElement('div');
+    visibleContainer.className = 'image-visible';
+    visibleContainer.innerHTML = \`
+        <img src="\${imageUrl}" alt="Image" class="message-image" onclick="openImageViewer('\${imageUrl}')">
+        <button onclick="hideImage(this)" class="hide-image-btn">Hide</button>
+    \`;
+    
+    messageContainer.appendChild(visibleContainer);
+}
+
+/**
+ * Hide image
+ */
+function hideImage(button) {
+    const visibleContainer = button.closest('.image-visible');
+    const messageContainer = button.closest('.image-message');
+    const hiddenContainer = messageContainer.querySelector('.image-hidden');
+    
+    visibleContainer.remove();
+    hiddenContainer.style.display = 'flex';
+}
+
+/**
+ * Open image viewer
+ */
+function openImageViewer(imageUrl) {
+    const modalHtml = \`
+        <div class="image-viewer-modal">
+            <div class="image-viewer-content">
+                <img src="\${imageUrl}" alt="Image">
+                <div class="image-viewer-controls">
+                    <button onclick="downloadImage('\${imageUrl}')" title="Download">⬇️</button>
+                    <button onclick="ModalManager.hide(this.closest('.modal'))" title="Close">&times;</button>
+                </div>
+            </div>
+        </div>
+    \`;
+    
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    overlay.innerHTML = \`<div class="modal modal-fullscreen">\${modalHtml}</div>\`;
+    document.body.appendChild(overlay);
+    
+    // Setup close handlers
+    ModalManager.setupCloseHandlers(overlay);
+    
+    setTimeout(() => overlay.classList.add('show'), 10);
+}
+
+/**
+ * Download image
+ */
+function downloadImage(imageUrl) {
+    const link = document.createElement('a');
+    link.href = imageUrl;
+    link.download = 'image.jpg';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+
+// Export utility functions
+window.ChatApp = {
+    ...window.ChatApp,
+    ModalManager,
+    showNewChatModal,
+    showSettingsModal,
+    toggleBulkMode,
+    bulkDeleteChats,
+    bulkPinChats,
+    showImage,
+    hideImage,
+    openImageViewer
+};
+
+console.log('Utils module loaded successfully');
+"""
+        }
+    ]
+
+    # Function to create files
+    def create_files(files_list):
+        print("\nCreating JavaScript files...")
+
+        for file_info in files_list:
+            full_file_path = os.path.join(base_path, file_info["path"])
+
+            try:
+                # Create directory if it doesn't exist
+                os.makedirs(os.path.dirname(full_file_path), exist_ok=True)
+
+                # Create file (overwrite if exists)
+                with open(full_file_path, 'w', encoding='utf-8') as f:
+                    f.write(file_info["content"])
+                print(f"✓ Created: {file_info['path']}")
+
+            except Exception as e:
+                print(f"✗ Failed to create {file_info['path']}: {str(e)}")

@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Confirmation Modal</title>
+</head>
+<body>
+    <!-- Generic Confirmation Modal Fragment -->
+    <div th:fragment="confirmation-modal" class="modal-overlay" id="confirmationModal" style="display: none;">
+        <div class="modal modal-small">
+            <div class="modal-header">
+                <h3 class="modal-title" id="confirmationTitle">Confirm Action</h3>
+                <button class="modal-close" onclick="closeModal('confirmationModal')">&times;</button>
+            </div>
+            
+            <div class="modal-body">
+                <div class="confirmation-icon" id="confirmationIcon">
+                    <i class="icon-warning">⚠️</i>
+                </div>
+                <div class="confirmation-message" id="confirmationMessage">
+                    <p>Are you sure you want to perform this action?</p>
+                </div>
+                <div class="confirmation-details" id="confirmationDetails" style="display: none;">
+                    <p class="details-text">This action cannot be undone.</p>
+                </div>
+            </div>
+            
+            <div class="modal-footer">
+                <button onclick="closeModal('confirmationModal')" class="btn btn-secondary" id="confirmationCancelBtn">Cancel</button>
+                <button onclick="confirmAction()" class="btn btn-danger" id="confirmationConfirmBtn">Confirm</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Delete Chat Confirmation Modal Fragment -->
+    <div th:fragment="delete-chat-modal" class="modal-overlay" id="deleteChatModal" style="display: none;">
+        <div class="modal modal-small">
+            <div class="modal-header">
+                <h3 class="modal-title">Delete Chat</h3>
+                <button class="modal-close" onclick="closeModal('deleteChatModal')">&times;</button>
+            </div>
+            
+            <div class="modal-body">
+                <div class="warning-icon">
+                    <i class="icon-delete">🗑️</i>
+                </div>
+                <div class="warning-message">
+                    <h4>Delete chat with <span id="deleteChatUsername">user</span>?</h4>
+                    <p>This will permanently delete all messages in this conversation.</p>
+                    <p class="warning-text"><strong>This action cannot be undone.</strong></p>
+                </div>
+                
+                <div class="delete-options">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="deleteForBoth">
+                        <span class="checkmark"></span>
+                        Also delete for the other person (if possible)
+                    </label>
+                </div>
+            </div>
+            
+            <div class="modal-footer">
+                <button onclick="closeModal('deleteChatModal')" class="btn btn-secondary">Cancel</button>
+                <button onclick="confirmDeleteChat()" class="btn btn-danger">Delete Chat</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Block User Confirmation Modal Fragment -->
+    <div th:fragment="block-user-modal" class="modal-overlay" id="blockUserModal" style="display: none;">
+        <div class="modal modal-medium">
+            <div class="modal-header">
+                <h3 class="modal-title">Block User</h3>
+                <button class="modal-close" onclick="closeModal('blockUserModal')">&times;</button>
+            </div>
+            
+            <div class="modal-body">
+                <div class="block-icon">
+                    <i class="icon-block">🚫</i>
+                </div>
+                <div class="block-message">
+                    <h4>Block <span id="blockUsername">user</span>?</h4>
+                    <p>Blocked users cannot send you messages or see when you're online.</p>
+                </div>
+                
+                <div class="block-options">
+                    <h5>Block Options:</h5>
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="blockMessages" checked>
+                        <span class="checkmark"></span>
+                        Block messages from this user
+                    </label>
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="hideOnlineStatus" checked>
+                        <span class="checkmark"></span>
+                        Hide your online status from this user
+                    </label>
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="deleteExistingChat">
+                        <span class="checkmark"></span>
+                        Delete existing conversation
+                    </label>
+                </div>
+                
+                <div class="block-reason">
+                    <label for="blockReason">Reason (optional):</label>
+                    <select id="blockReason" class="block-reason-select">
+                        <option value="">Select a reason...</option>
+                        <option value="spam">Spam</option>
+                        <option value="harassment">Harassment</option>
+                        <option value="inappropriate">Inappropriate content</option>
+                        <option value="unwanted">Unwanted contact</option>
+                        <option value="other">Other</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div class="modal-footer">
+                <button onclick="closeModal('blockUserModal')" class="btn btn-secondary">Cancel</button>
+                <button onclick="confirmBlockUser()" class="btn btn-danger">Block User</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Logout Confirmation Modal Fragment -->
+    <div th:fragment="logout-modal" class="modal-overlay" id="logoutModal" style="display: none;">
+        <div class="modal modal-small">
+            <div class="modal-header">
+                <h3 class="modal-title">Logout</h3>
+                <button class="modal-close" onclick="closeModal('logoutModal')">&times;</button>
+            </div>
+            
+            <div class="modal-body">
+                <div class="logout-icon">
+                    <i class="icon-logout">🚪</i>
+                </div>
+                <div class="logout-message">
+                    <h4>Are you sure you want to logout?</h4>
+                    <p>You will need to login again to access your chats.</p>
+                </div>
+                
+                <div class="logout-options">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="rememberLogin">
+                        <span class="checkmark"></span>
+                        Remember me for quick login next time
+                    </label>
+                </div>
+            </div>
+            
+            <div class="modal-footer">
+                <button onclick="closeModal('logoutModal')" class="btn btn-secondary">Cancel</button>
+                <button onclick="confirmLogout()" class="btn btn-primary">Logout</button>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

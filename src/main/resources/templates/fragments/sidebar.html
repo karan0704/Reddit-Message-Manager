@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Chat Sidebar</title>
+</head>
+<body>
+    <!-- Chat Sidebar Fragment -->
+    <div th:fragment="sidebar" class="chat-sidebar">
+        <div class="sidebar-header">
+            <h3>Chats</h3>
+            <div class="sidebar-actions">
+                <button id="bulkSelectBtn" class="bulk-select-btn" onclick="toggleBulkMode()">
+                    <i class="icon-select"></i> Select
+                </button>
+                <button class="new-chat-btn" onclick="showNewChatModal()">
+                    <i class="icon-plus"></i>
+                </button>
+            </div>
+        </div>
+        
+        <!-- Search Bar -->
+        <div class="search-container">
+            <input type="text" id="chatSearch" placeholder="Search chats..." class="search-input" onkeyup="filterChats()">
+            <button class="search-btn" onclick="searchChats()">
+                <i class="icon-search"></i>
+            </button>
+        </div>
+        
+        <!-- Filter Options -->
+        <div class="filter-options">
+            <button class="filter-btn active" data-filter="all" onclick="filterChatsByType('all')">All</button>
+            <button class="filter-btn" data-filter="unread" onclick="filterChatsByType('unread')">Unread</button>
+            <button class="filter-btn" data-filter="pinned" onclick="filterChatsByType('pinned')">Pinned</button>
+        </div>
+        
+        <!-- Chat List -->
+        <div id="chatList" class="chat-list">
+            <div class="loading" id="chatLoading">
+                <div class="spinner"></div>
+                <span>Loading chats...</span>
+            </div>
+        </div>
+        
+        <!-- Bulk Actions (Hidden by default) -->
+        <div id="bulkActions" class="bulk-actions hidden">
+            <button onclick="bulkDeleteChats()" class="btn btn-danger">
+                <i class="icon-delete"></i> Delete Selected
+            </button>
+            <button onclick="bulkPinChats()" class="btn btn-primary">
+                <i class="icon-pin"></i> Pin Selected
+            </button>
+            <button onclick="bulkBlockUsers()" class="btn btn-warning">
+                <i class="icon-block"></i> Block Selected
+            </button>
+            <button onclick="cancelBulkMode()" class="btn btn-secondary">
+                <i class="icon-cancel"></i> Cancel
+            </button>
+        </div>
+    </div>
+    
+    <!-- Chat List Item Template -->
+    <div th:fragment="chat-item" class="chat-item" th:data-chat-id="${chat.id}">
+        <div class="chat-avatar">
+            <img th:src="${chat.otherUsername != null ? '/api/user/' + chat.otherUsername + '/avatar' : '/images/default-avatar.png'}" 
+                 th:alt="${chat.otherUsername}" class="avatar-img">
+            <div th:if="${chat.hasUnread}" class="unread-indicator"></div>
+        </div>
+        
+        <div class="chat-content">
+            <div class="chat-header">
+                <span class="chat-username" th:text="${chat.otherUsername}">Username</span>
+                <span class="chat-time" th:text="${#temporals.format(chat.lastMessageTimestamp, 'HH:mm')}">12:30</span>
+            </div>
+            
+            <div class="chat-preview">
+                <span class="last-message" th:text="${chat.lastMessage}">Last message preview...</span>
+                <div class="chat-indicators">
+                    <span th:if="${chat.isPinned}" class="pinned-indicator" title="Pinned">📌</span>
+                    <span th:if="${chat.hasUnread and chat.unreadCount > 0}" 
+                          class="unread-count" th:text="${chat.unreadCount}">3</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="chat-actions">
+            <button class="pin-btn" th:onclick="'togglePin(' + ${chat.id} + ')'" 
+                    th:title="${chat.isPinned} ? 'Unpin' : 'Pin'">
+                <i th:class="${chat.isPinned} ? 'icon-pin-filled' : 'icon-pin'"></i>
+            </button>
+            <div class="chat-checkbox">
+                <input type="checkbox" th:id="'chat-' + ${chat.id}" class="chat-select-checkbox">
+            </div>
+        </div>
+    </div>
+</body>
+</html>

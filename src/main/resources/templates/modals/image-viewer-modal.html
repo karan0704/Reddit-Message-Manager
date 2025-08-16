@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Image Viewer Modal</title>
+</head>
+<body>
+    <!-- Image Viewer Modal Fragment -->
+    <div th:fragment="image-viewer-modal" class="modal-overlay image-viewer" id="imageViewerModal" style="display: none;">
+        <div class="image-viewer-modal">
+            <div class="image-viewer-content">
+                <img id="viewerImage" src="" alt="Image" class="viewer-image">
+                
+                <div class="image-viewer-controls">
+                    <button id="prevImageBtn" onclick="previousImage()" class="viewer-btn" title="Previous Image" style="display: none;">
+                        <i class="icon-prev">⬅️</i>
+                    </button>
+                    
+                    <button id="nextImageBtn" onclick="nextImage()" class="viewer-btn" title="Next Image" style="display: none;">
+                        <i class="icon-next">➡️</i>
+                    </button>
+                    
+                    <button onclick="zoomIn()" class="viewer-btn" title="Zoom In">
+                        <i class="icon-zoom-in">🔍+</i>
+                    </button>
+                    
+                    <button onclick="zoomOut()" class="viewer-btn" title="Zoom Out">
+                        <i class="icon-zoom-out">🔍-</i>
+                    </button>
+                    
+                    <button onclick="resetZoom()" class="viewer-btn" title="Reset Zoom">
+                        <i class="icon-reset">🔄</i>
+                    </button>
+                    
+                    <button onclick="rotateImage(90)" class="viewer-btn" title="Rotate Right">
+                        <i class="icon-rotate">↻</i>
+                    </button>
+                    
+                    <button onclick="downloadCurrentImage()" class="viewer-btn" title="Download">
+                        <i class="icon-download">⬇️</i>
+                    </button>
+                    
+                    <button onclick="shareImage()" class="viewer-btn" title="Share">
+                        <i class="icon-share">📤</i>
+                    </button>
+                    
+                    <button onclick="closeImageViewer()" class="viewer-btn close-btn" title="Close">
+                        <i class="icon-close">✖️</i>
+                    </button>
+                </div>
+                
+                <div id="imageCounter" class="image-counter" style="display: none;">
+                    <span id="currentImageIndex">1</span> of <span id="totalImages">1</span>
+                </div>
+                
+                <div class="image-info" id="imageInfo">
+                    <div class="info-item">
+                        <span class="info-label">From:</span>
+                        <span class="info-value" id="imageSender">Unknown</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Date:</span>
+                        <span class="info-value" id="imageDate">Unknown</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Size:</span>
+                        <span class="info-value" id="imageSize">Unknown</span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Image Thumbnails (for multiple images) -->
+            <div id="imageThumbnails" class="image-thumbnails" style="display: none;">
+                <div class="thumbnails-container" id="thumbnailsContainer">
+                    <!-- Thumbnails will be populated dynamically -->
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Image Upload Modal Fragment -->
+    <div th:fragment="image-upload-modal" class="modal-overlay" id="imageUploadModal" style="display: none;">
+        <div class="modal modal-medium">
+            <div class="modal-header">
+                <h3 class="modal-title">Upload Image</h3>
+                <button class="modal-close" onclick="closeModal('imageUploadModal')">&times;</button>
+            </div>
+            
+            <div class="modal-body">
+                <div class="upload-area" id="imageUploadArea">
+                    <div class="upload-placeholder">
+                        <i class="upload-icon">📷</i>
+                        <h4>Choose Image or Drag & Drop</h4>
+                        <p>Supports: JPEG, PNG, GIF, WebP (Max 10MB)</p>
+                        <button onclick="document.getElementById('imageFileInput').click()" class="btn btn-primary">
+                            Choose File
+                        </button>
+                        <input type="file" id="imageFileInput" accept="image/*" style="display: none;" onchange="handleImageFileSelect(this.files)">
+                    </div>
+                </div>
+                
+                <div class="image-preview" id="imagePreview" style="display: none;">
+                    <img id="previewImage" src="" alt="Preview" class="preview-img">
+                    <div class="preview-info">
+                        <p><strong>File:</strong> <span id="previewFileName">image.jpg</span></p>
+                        <p><strong>Size:</strong> <span id="previewFileSize">1.2 MB</span></p>
+                        <p><strong>Dimensions:</strong> <span id="previewDimensions">1920x1080</span></p>
+                    </div>
+                    <div class="preview-actions">
+                        <button onclick="clearImagePreview()" class="btn btn-secondary">Change Image</button>
+                        <button onclick="compressImage()" class="btn btn-outline">Compress</button>
+                    </div>
+                </div>
+                
+                <div class="upload-options">
+                    <div class="option-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="compressUpload" checked>
+                            <span class="checkmark"></span>
+                            Compress image for faster upload
+                        </label>
+                    </div>
+                    <div class="option-group">
+                        <label for="imageCaption">Caption (optional):</label>
+                        <textarea id="imageCaption" placeholder="Add a caption for this image..." rows="2"></textarea>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="modal-footer">
+                <button onclick="closeModal('imageUploadModal')" class="btn btn-secondary">Cancel</button>
+                <button onclick="uploadSelectedImage()" class="btn btn-primary" id="uploadImageBtn" disabled>Upload Image</button>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

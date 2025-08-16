@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>User Profile Modal</title>
+</head>
+<body>
+    <!-- User Profile Modal Fragment -->
+    <div th:fragment="user-profile-modal" class="modal-overlay" id="userProfileModal" style="display: none;">
+        <div class="modal modal-medium">
+            <div class="modal-header">
+                <h3 class="modal-title">User Profile</h3>
+                <button class="modal-close" onclick="closeModal('userProfileModal')">&times;</button>
+            </div>
+            
+            <div class="modal-body">
+                <div class="profile-header">
+                    <div class="profile-avatar">
+                        <img id="profileAvatar" src="/images/default-avatar.png" alt="User Avatar" class="avatar-large">
+                        <div class="status-indicator" id="profileStatus">
+                            <span class="status-dot online"></span>
+                            <span class="status-text">Online</span>
+                        </div>
+                    </div>
+                    
+                    <div class="profile-info">
+                        <h4 id="profileDisplayName">Display Name</h4>
+                        <p id="profileUsername">@username</p>
+                        <p id="profileJoinDate">Member since: January 2024</p>
+                    </div>
+                </div>
+                
+                <div class="profile-stats">
+                    <div class="stat-item">
+                        <span class="stat-value" id="profileMessageCount">0</span>
+                        <span class="stat-label">Messages</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-value" id="profileChatCount">0</span>
+                        <span class="stat-label">Chats</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-value" id="profileLastSeen">Unknown</span>
+                        <span class="stat-label">Last Seen</span>
+                    </div>
+                </div>
+                
+                <div class="profile-actions">
+                    <button onclick="startChatWithUser()" class="btn btn-primary">
+                        <i class="icon-chat">💬</i> Send Message
+                    </button>
+                    <button onclick="showBlockUserModal()" class="btn btn-danger">
+                        <i class="icon-block">🚫</i> Block User
+                    </button>
+                    <button onclick="reportUser()" class="btn btn-warning">
+                        <i class="icon-report">⚠️</i> Report
+                    </button>
+                </div>
+                
+                <div class="profile-details">
+                    <div class="detail-section">
+                        <h5>About</h5>
+                        <p id="profileBio">No bio available.</p>
+                    </div>
+                    
+                    <div class="detail-section" id="mutualChatsSection" style="display: none;">
+                        <h5>Mutual Conversations</h5>
+                        <div id="mutualChatsList">
+                            <!-- Populated dynamically -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="modal-footer">
+                <button onclick="closeModal('userProfileModal')" class="btn btn-secondary">Close</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Edit Profile Modal Fragment -->
+    <div th:fragment="edit-profile-modal" class="modal-overlay" id="editProfileModal" style="display: none;">
+        <div class="modal modal-medium">
+            <div class="modal-header">
+                <h3 class="modal-title">Edit Profile</h3>
+                <button class="modal-close" onclick="closeModal('editProfileModal')">&times;</button>
+            </div>
+            
+            <div class="modal-body">
+                <form id="editProfileForm">
+                    <div class="avatar-edit">
+                        <div class="current-avatar">
+                            <img id="editProfileAvatar" src="/images/default-avatar.png" alt="Current Avatar" class="avatar-large">
+                            <button type="button" onclick="changeAvatar()" class="change-avatar-btn">
+                                <i class="icon-camera">📷</i>
+                            </button>
+                        </div>
+                        <input type="file" id="avatarInput" accept="image/*" style="display: none;" onchange="handleAvatarChange(this.files)">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="editDisplayName">Display Name:</label>
+                        <input type="text" id="editDisplayName" name="displayName" maxlength="50" placeholder="Your display name">
+                        <small>This is how others will see your name in chats</small>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="editUsername">Username:</label>
+                        <input type="text" id="editUsername" name="username" maxlength="30" placeholder="@username" readonly>
+                        <small>Username cannot be changed</small>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="editEmail">Email:</label>
+                        <input type="email" id="editEmail" name="email" placeholder="your.email@example.com">
+                        <small>Used for account recovery and notifications</small>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="editBio">Bio:</label>
+                        <textarea id="editBio" name="bio" rows="3" maxlength="200" placeholder="Tell others about yourself..."></textarea>
+                        <small><span id="bioCharCount">0</span>/200 characters</small>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Privacy Settings:</label>
+                        <div class="privacy-options">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="showOnlineStatus" name="showOnlineStatus" checked>
+                                <span class="checkmark"></span>
+                                Show online status to others
+                            </label>
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="allowDirectMessages" name="allowDirectMessages" checked>
+                                <span class="checkmark"></span>
+                                Allow messages from anyone
+                            </label>
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="showReadReceipts" name="showReadReceipts" checked>
+                                <span class="checkmark"></span>
+                                Send read receipts
+                            </label>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            
+            <div class="modal-footer">
+                <button onclick="closeModal('editProfileModal')" class="btn btn-secondary">Cancel</button>
+                <button onclick="saveProfileChanges()" class="btn btn-primary">Save Changes</button>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
